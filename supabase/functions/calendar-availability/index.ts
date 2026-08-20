@@ -4,12 +4,11 @@ import {
   createServiceClient,
   errorResponse,
   jsonResponse,
-  parseJsonBody,
 } from "../_shared/errors.ts";
 import { checkAvailability } from "../_shared/calendar.ts";
+import { readRawBody, verifyRetellSignature } from "../_shared/webhook.ts";
 
 interface AvailabilityRequest {
-  business_id: string;
   start_date: string;
   end_date?: string;
   duration_minutes?: number;
@@ -18,6 +17,7 @@ interface AvailabilityRequest {
 interface RetellToolRequest {
   name?: string;
   args?: AvailabilityRequest;
+  call?: { agent_id?: string };
 }
 
 Deno.serve(async (req) => {
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, content-type",
+        "Access-Control-Allow-Headers": "authorization, content-type, x-retell-signature",
       },
     });
   }
@@ -36,29 +36,30 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const raw = await parseJsonBody<AvailabilityRequest | RetellToolRequest>(req);
-
-    const businessId = "business_id" in raw && raw.business_id
-      ? raw.business_id
-      : (raw as RetellToolRequest).args?.business_id;
-
-    const startDate = "start_date" in raw && raw.start_date
-      ? raw.start_date
-      : (raw as RetellToolRequest).args?.start_date;
-
-    const endDate = "end_date" in raw
-      ? raw.end_date
-      : (raw as RetellToolRequest).args?.end_date;
-
-    const durationMinutes = "duration_minutes" in raw
-      ? raw.duration_minutes
-      : (raw as RetellToolRequest).args?.duration_minutes;
-
-    if (!businessId || !startDate) {
-      throw new AppError("business_id and start_date are required", 400);
-    }
+    const rawBody = await readRawBody(req);
+    await verifyRetellSignature(req, rawBody);
+    const raw = JSON.parse(rawBody) as RetellToolRequest;
+    const agentId = raw.call?.agent_id;
+    if (!agentId) throw new AppError("Verified Retell call context is required", 401);
 
     const supabase = createServiceClient();
+    const { data: agent } = await supabase.from("agents")
+      .select("business_id")
+      .eq("retell_agent_id", agentId)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (!agent) throw new AppError("Active Retell agent not found", 404);
+
+    const businessId = agent.business_id as string;
+
+    const startDate = raw.args?.start_date;
+    const endDate = raw.args?.end_date;
+    const durationMinutes = raw.args?.duration_minutes;
+
+    if (!startDate) {
+      throw new AppError("start_date is required", 400);
+    }
+
     const slots = await checkAvailability(supabase, {
       businessId,
       startDate,

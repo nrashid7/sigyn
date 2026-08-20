@@ -5,6 +5,7 @@ import {
   jsonResponse,
 } from "../_shared/errors.ts";
 import { syncN8nWorkflowsToDb } from "../_shared/n8n.ts";
+import { assertServiceRole } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -22,6 +23,7 @@ Deno.serve(async (req) => {
   }
 
   try {
+    assertServiceRole(req);
     const supabase = createServiceClient();
     const results = await syncN8nWorkflowsToDb(supabase);
     const synced = results.filter((r) => r.synced).length;

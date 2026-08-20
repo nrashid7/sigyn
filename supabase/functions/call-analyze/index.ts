@@ -8,6 +8,7 @@ import {
 } from "../_shared/errors.ts";
 import { chatCompletionJson } from "../_shared/ai.ts";
 import { captureCallEvent } from "../_shared/analytics.ts";
+import { assertServiceRole } from "../_shared/auth.ts";
 
 interface AnalyzeRequest {
   call_id: string;
@@ -45,6 +46,7 @@ Deno.serve(async (req) => {
   }
 
   try {
+    assertServiceRole(req);
     const { call_id } = await parseJsonBody<AnalyzeRequest>(req);
     if (!call_id) {
       throw new AppError("call_id is required", 400);

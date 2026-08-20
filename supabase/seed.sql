@@ -22,7 +22,8 @@ INSERT INTO agent_templates (slug, name, industry, config) VALUES
     "escalation_rules": [],
     "faq_rules": [],
     "qualification_questions": [],
-    "retell_llm_config": {"model": "gpt-4.1-mini", "temperature": 0.7}
+    "template_version": 1, "catalog_slug": "general-receptionist",
+    "retell_llm_config": {"model": "gpt-4.1-mini", "temperature": 0.2, "tool_call_strict_mode": true}
   }'::jsonb
 ),
 (
@@ -47,7 +48,8 @@ INSERT INTO agent_templates (slug, name, industry, config) VALUES
     "escalation_rules": [],
     "faq_rules": [],
     "qualification_questions": [],
-    "retell_llm_config": {"model": "gpt-4.1-mini", "temperature": 0.6}
+    "template_version": 1, "catalog_slug": "appointment-booking",
+    "retell_llm_config": {"model": "gpt-4.1-mini", "temperature": 0.2, "tool_call_strict_mode": true}
   }'::jsonb
 ),
 (
@@ -72,7 +74,8 @@ INSERT INTO agent_templates (slug, name, industry, config) VALUES
     "escalation_rules": [],
     "faq_rules": [],
     "qualification_questions": [],
-    "retell_llm_config": {"model": "gpt-4.1-mini", "temperature": 0.5}
+    "template_version": 1, "catalog_slug": "home-services-dispatcher",
+    "retell_llm_config": {"model": "gpt-4.1-mini", "temperature": 0.2, "tool_call_strict_mode": true}
   }'::jsonb
 ),
 (
@@ -122,10 +125,16 @@ INSERT INTO agent_templates (slug, name, industry, config) VALUES
     "escalation_rules": [],
     "faq_rules": [],
     "qualification_questions": [],
-    "retell_llm_config": {"model": "gpt-4.1-mini", "temperature": 0.7}
+    "template_version": 1, "catalog_slug": "lead-qualification",
+    "retell_llm_config": {"model": "gpt-4.1-mini", "temperature": 0.2, "tool_call_strict_mode": true}
   }'::jsonb
 )
-ON CONFLICT (slug) DO NOTHING;
+ON CONFLICT (slug) DO UPDATE SET
+  name = EXCLUDED.name,
+  industry = EXCLUDED.industry,
+  config = EXCLUDED.config;
+
+UPDATE agent_templates SET is_active = (slug IN ('dexter', 'zia', 'sparky', 'bella'));
 
 -- Seed n8n workflow webhooks (Railway production)
 INSERT INTO workflows (name, webhook_url, is_active, config) VALUES

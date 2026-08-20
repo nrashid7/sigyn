@@ -18,11 +18,28 @@
     {
       "parameters": {
         "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.body.metadata?.beta_readiness_check === true }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-readiness",
+      "name": "Is Readiness Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
           "string": [
             {
               "value1": "={{ $json.body.event }}",
               "operation": "equal",
-              "value2": "call.completed"
+              "value2": "call_completed"
             }
           ]
         }
@@ -31,7 +48,7 @@
       "name": "Is Call Completed",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [470, 300]
+      "position": [690, 300]
     },
     {
       "parameters": {
@@ -49,7 +66,7 @@
       "name": "Is Missed Call",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [690, 200]
+      "position": [910, 200]
     },
     {
       "parameters": {
@@ -68,7 +85,7 @@
       "name": "Trigger SMS Follow-Up",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [910, 100]
+      "position": [1130, 100]
     },
     {
       "parameters": {
@@ -85,7 +102,7 @@
       "name": "Trigger HubSpot Sync",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [910, 300]
+      "position": [1130, 300]
     },
     {
       "parameters": {
@@ -96,11 +113,17 @@
       "name": "Respond",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1130, 300]
+      "position": [1350, 300]
     }
   ],
   "connections": {
-    "Webhook": { "main": [[{ "node": "Is Call Completed", "type": "main", "index": 0 }]] },
+    "Webhook": { "main": [[{ "node": "Is Readiness Check", "type": "main", "index": 0 }]] },
+    "Is Readiness Check": {
+      "main": [
+        [{ "node": "Respond", "type": "main", "index": 0 }],
+        [{ "node": "Is Call Completed", "type": "main", "index": 0 }]
+      ]
+    },
     "Is Call Completed": {
       "main": [
         [{ "node": "Is Missed Call", "type": "main", "index": 0 }],

@@ -16,6 +16,23 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.body.metadata?.beta_readiness_check === true }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-readiness",
+      "name": "Is Readiness Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://rest.gohighlevel.com/v1/contacts/",
         "authentication": "predefinedCredentialType",
@@ -28,7 +45,7 @@
       "name": "GHL Create Contact",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [470, 300]
+      "position": [690, 300]
     },
     {
       "parameters": {
@@ -39,11 +56,17 @@
       "name": "Respond",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [690, 300]
+      "position": [910, 300]
     }
   ],
   "connections": {
-    "Webhook": { "main": [[{ "node": "GHL Create Contact", "type": "main", "index": 0 }]] },
+    "Webhook": { "main": [[{ "node": "Is Readiness Check", "type": "main", "index": 0 }]] },
+    "Is Readiness Check": {
+      "main": [
+        [{ "node": "Respond", "type": "main", "index": 0 }],
+        [{ "node": "GHL Create Contact", "type": "main", "index": 0 }]
+      ]
+    },
     "GHL Create Contact": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1" },

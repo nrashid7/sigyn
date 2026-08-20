@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { signUp, signInWithGoogle } from "@/lib/actions/auth";
 import { trackEvent, AnalyticsEvents } from "@/lib/analytics";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Phone } from "lucide-react";
 export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     trackEvent(AnalyticsEvents.SIGNUP, { step: "view" });
@@ -33,7 +34,7 @@ export default function SignupPage() {
   async function handleGoogle() {
     setLoading(true);
     trackEvent(AnalyticsEvents.SIGNUP, { method: "google" });
-    const result = await signInWithGoogle();
+    const result = await signInWithGoogle(new FormData(formRef.current ?? undefined));
     if (result?.error) {
       setError(result.error);
       setLoading(false);
@@ -59,7 +60,7 @@ export default function SignupPage() {
             <span className="text-xs text-muted-foreground">or</span>
             <Separator className="flex-1" />
           </div>
-          <form action={handleSubmit} className="space-y-4">
+          <form ref={formRef} action={handleSubmit} className="space-y-4">
             {error && (
               <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-red-400">
                 {error}
@@ -74,11 +75,15 @@ export default function SignupPage() {
               <Input id="email" name="email" type="email" required className="mt-1.5" placeholder="you@company.com" />
             </div>
             <div>
+              <Label htmlFor="invite_code">Controlled beta invitation</Label>
+              <Input id="invite_code" name="invite_code" required className="mt-1.5" autoComplete="off" placeholder="Invitation code" />
+            </div>
+            <div>
               <Label htmlFor="password">Password</Label>
               <Input id="password" name="password" type="password" required minLength={8} className="mt-1.5" placeholder="Min 8 characters" />
             </div>
             <Button type="submit" variant="gradient" className="w-full" disabled={loading}>
-              {loading ? "Creating account..." : "Get Started Free"}
+              {loading ? "Creating account..." : "Join Controlled Beta"}
             </Button>
           </form>
           <p className="text-center text-sm text-muted-foreground">

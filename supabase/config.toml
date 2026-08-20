@@ -8,3 +8,43 @@ enabled = true
 
 [db]
 major_version = 17
+
+[functions.retell-webhook]
+verify_jwt = false
+
+[functions.calendar-availability]
+verify_jwt = false
+
+[functions.calendar-book]
+verify_jwt = false
+
+[functions.qualify-lead]
+verify_jwt = false
+
+[functions.retell-knowledge-sync]
+verify_jwt = true
+
+[functions.retell-create-agent]
+verify_jwt = true
+
+[functions.n8n-dispatch]
+verify_jwt = true
+
+[functions.call-analyze]
+verify_jwt = true
+
+[functions.knowledge-ingest]
+verify_jwt = true
+
+[functions.knowledge-search]
+verify_jwt = true
+
+[functions.sync-n8n-workflows]
+verify_jwt = true
+
+[functions.voice-preview]
+verify_jwt = true
+
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/hook_restrict_beta_signup"

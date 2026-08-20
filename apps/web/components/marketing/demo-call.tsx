@@ -21,11 +21,28 @@ export function DemoCall() {
   const [business, setBusiness] = useState("");
   const [agent, setAgent] = useState(agentTemplates[0].agent_name);
   const [status, setStatus] = useState<"idle" | "calling" | "done">("idle");
+  const [consent, setConsent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleDemo = () => {
+  const handleDemo = async () => {
     if (!phone) return;
+    setError(null);
     setStatus("calling");
-    setTimeout(() => setStatus("done"), 2500);
+    const response = await fetch("/api/demo/calls", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone, business, agent, consent,
+        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }),
+    });
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) {
+      setStatus("idle");
+      setError(result.error ?? "Could not start the demo call");
+      return;
+    }
+    setStatus("done");
   };
 
   return (
@@ -116,7 +133,7 @@ export function DemoCall() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {agentTemplates.map((template) => (
+                      {agentTemplates.filter((template) => ["Dexter", "Zia", "Sparky", "Bella"].includes(template.agent_name)).map((template) => (
                         <SelectItem key={template.agent_name} value={template.agent_name}>
                           {template.agent_name} - {template.display.specialty}
                         </SelectItem>
@@ -126,11 +143,17 @@ export function DemoCall() {
                 </div>
               </div>
 
+              <label className="flex items-start gap-3 text-xs leading-5 text-muted-foreground">
+                <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} className="mt-1" />
+                <span>I consent to an AI-generated callback that may be recorded and transcribed for this demo. I can end the call at any time.</span>
+              </label>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+
               <Button
                 size="lg"
                 className="w-full"
                 onClick={handleDemo}
-                disabled={status === "calling" || !phone}
+                disabled={status === "calling" || !phone || !consent}
               >
                 {status === "idle" && (
                   <>
@@ -148,7 +171,7 @@ export function DemoCall() {
               </Button>
 
               <p className="text-center text-xs leading-5 text-muted-foreground">
-                Demo calls are free. Standard carrier rates may apply. Production setup is scheduled after consultation.
+                Demo calls are free. Standard carrier rates may apply. Calls are only placed from 8 AM–8 PM local time.
               </p>
             </CardContent>
           </Card>

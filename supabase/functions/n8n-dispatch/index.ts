@@ -8,6 +8,7 @@ import {
 } from "../_shared/errors.ts";
 import { buildN8nDispatchPayload } from "../_shared/crm.ts";
 import { captureBusinessEvent } from "../_shared/analytics.ts";
+import { assertServiceRole } from "../_shared/auth.ts";
 import {
   getDispatchWebhookUrl,
   postToN8nWebhook,
@@ -38,6 +39,7 @@ Deno.serve(async (req) => {
   }
 
   try {
+    assertServiceRole(req);
     const body = await parseJsonBody<DispatchRequest>(req);
     const { event, business_id, call_id, workflow_id } = body;
 
@@ -46,6 +48,12 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createServiceClient();
+
+    const { data: controls, error: controlsError } = await supabase.from("system_controls")
+      .select("automation_dispatch_enabled").eq("id", true).single();
+    if (controlsError || controls?.automation_dispatch_enabled !== true) {
+      throw new AppError("Automation dispatch is temporarily paused", 503, "AUTOMATION_PAUSED");
+    }
 
     let callData: Record<string, unknown> | null = null;
     let transcriptSummary: string | undefined;

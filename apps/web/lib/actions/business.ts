@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { businessDetailsSchema } from "@businessvoice/shared";
 import { createClient } from "@/lib/supabase/server";
 import { getUser } from "./auth";
+import { createBusinessForCurrentUser } from "@/lib/services/business-service";
+import { after } from "next/server";
+import { queueWebsiteIngestion } from "@/lib/ingestion/queue-job";
+import { processIngestionJob } from "@/lib/ingestion/process-job";
 
 export async function getBusiness() {
   const user = await getUser();
@@ -47,33 +51,28 @@ export async function createBusiness(formData: FormData) {
 
   const supabase = await createClient();
 
-  const { data: existingMembership } = await supabase
-    .from("business_members")
-    .select("business_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (existingMembership) {
-    return { error: "You already have a business. Continue onboarding from your dashboard." };
+  let business;
+  try {
+    business = await createBusinessForCurrentUser(supabase, parsed.data);
+  } catch (error) {
+    return {
+      error: error instanceof Error
+        ? error.message
+        : "Could not create the business",
+    };
   }
 
-  const { data: business, error } = await supabase
-    .from("businesses")
-    .insert({
-      ...parsed.data,
-      onboarding_step: 2,
-      onboarding_complete: false,
-    })
-    .select()
-    .single();
-
-  if (error) return { error: error.message };
-
-  await supabase.from("business_members").insert({
-    business_id: business.id,
-    user_id: user.id,
-    role: "business_owner",
-  });
+  const created = business as { id?: string } | null;
+  if (created?.id && parsed.data.website) {
+    try {
+      const job = await queueWebsiteIngestion(created.id, parsed.data.website);
+      after(() => processIngestionJob(job.id).catch((error) => {
+        console.error("Onboarding ingestion failed", { jobId: job.id, error });
+      }));
+    } catch (error) {
+      console.error("Could not queue onboarding ingestion", error);
+    }
+  }
 
   revalidatePath("/dashboard");
   return { success: true, business };

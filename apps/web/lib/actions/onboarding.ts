@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { callPreferencesSchema, voiceSelectionSchema } from "@businessvoice/shared";
 import { createClient } from "@/lib/supabase/server";
-import { getSupabaseServiceRoleKey } from "@/lib/supabase/admin";
 import { getBusiness } from "./business";
 import { trackServerEvent } from "@/lib/analytics-server";
 
@@ -90,31 +89,23 @@ export async function saveVoiceSelection(formData: FormData) {
     return { error: parsed.error.errors[0]?.message || "Invalid input" };
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const serviceKey = getSupabaseServiceRoleKey();
-
-  const response = await fetch(`${supabaseUrl}/functions/v1/retell-create-agent`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${serviceKey}`,
-    },
-    body: JSON.stringify({
-      business_id: business.id,
-      template_slug: templateSlug,
-      name: (formData.get("agent_name") as string) || "AI Employee",
-      voice_id: voiceId,
-      voice_provider: voiceProvider,
-      include_calendar: true,
-    }),
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    return { error: (err as { error?: string }).error ?? "Failed to hire agent" };
-  }
-
   const supabase = await createClient();
+  const { data: template } = await supabase.from("agent_templates")
+    .select("id,name,config").eq("slug", templateSlug).eq("is_active", true).single();
+  if (!template) return { error: "Agent template not found" };
+  const { error: agentError } = await supabase.from("agents").insert({
+    business_id: business.id,
+    template_id: template.id,
+    name: (formData.get("agent_name") as string) || template.name,
+    type: "inbound",
+    voice_provider: voiceProvider,
+    voice_id: voiceId,
+    config: template.config,
+    lifecycle_status: "draft",
+    is_active: false,
+  });
+  if (agentError) return { error: agentError.message };
+
   const { error } = await supabase
     .from("businesses")
     .update({ onboarding_step: 5, onboarding_complete: true })

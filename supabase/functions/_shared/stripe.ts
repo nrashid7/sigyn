@@ -7,7 +7,7 @@ export function getStripeClient(): Stripe {
   if (!key) {
     throw new AppError("Missing STRIPE_SECRET_KEY", 500, "CONFIG_ERROR");
   }
-  return new Stripe(key, { apiVersion: "2024-11-20.acacia" });
+  return new Stripe(key, { apiVersion: "2025-02-24.acacia" });
 }
 
 export async function verifyStripeWebhook(

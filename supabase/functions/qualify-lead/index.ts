@@ -4,11 +4,10 @@ import {
   createServiceClient,
   errorResponse,
   jsonResponse,
-  parseJsonBody,
 } from "../_shared/errors.ts";
+import { readRawBody, verifyRetellSignature } from "../_shared/webhook.ts";
 
 interface QualifyLeadRequest {
-  business_id: string;
   call_id?: string;
   retell_call_id?: string;
   name?: string;
@@ -20,13 +19,18 @@ interface QualifyLeadRequest {
   lead_score?: number;
 }
 
+interface RetellToolRequest {
+  args?: QualifyLeadRequest;
+  call?: { agent_id?: string; call_id?: string };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, content-type",
+        "Access-Control-Allow-Headers": "authorization, content-type, x-retell-signature",
       },
     });
   }
@@ -36,12 +40,19 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const body = await parseJsonBody<QualifyLeadRequest>(req);
-    if (!body.business_id) {
-      throw new AppError("business_id is required", 400);
-    }
+    const rawBody = await readRawBody(req);
+    await verifyRetellSignature(req, rawBody);
+    const request = JSON.parse(rawBody) as RetellToolRequest;
+    const body = request.args ?? {};
+    if (!request.call?.agent_id) throw new AppError("Verified Retell call context is required", 401);
 
     const supabase = createServiceClient();
+    const { data: agent } = await supabase.from("agents")
+      .select("id, business_id")
+      .eq("retell_agent_id", request.call.agent_id)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (!agent) throw new AppError("Active Retell agent not found", 404);
     const qualificationData = {
       name: body.name,
       email: body.email,
@@ -53,12 +64,13 @@ Deno.serve(async (req) => {
       qualified_at: new Date().toISOString(),
     };
 
-    let callId = body.call_id;
-    if (!callId && body.retell_call_id) {
+    let callId: string | undefined;
+    const retellCallId = request.call.call_id ?? body.retell_call_id;
+    if (retellCallId) {
       const { data: call } = await supabase
         .from("calls")
         .select("id")
-        .eq("retell_call_id", body.retell_call_id)
+        .eq("retell_call_id", retellCallId)
         .maybeSingle();
       callId = call?.id;
     }

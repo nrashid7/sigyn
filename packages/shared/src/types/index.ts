@@ -161,6 +161,11 @@ export interface KnowledgeDocument {
   status: DocumentStatus;
   chunk_count: number;
   error_message: string | null;
+  retell_source_id: string | null;
+  retell_status: "pending" | "syncing" | "ready" | "failed" | "deleting";
+  retell_last_error: string | null;
+  retell_synced_at: string | null;
+  retell_deleted_at: string | null;
   created_at: string;
 }
 

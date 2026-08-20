@@ -17,6 +17,23 @@
     {
       "parameters": {
         "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.body.metadata?.beta_readiness_check === true }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-readiness",
+      "name": "Is Readiness Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
           "string": [
             {
               "value1": "={{ $json.body.type }}",
@@ -30,7 +47,7 @@
       "name": "Message Type",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
-      "position": [470, 300]
+      "position": [690, 300]
     },
     {
       "parameters": {
@@ -42,7 +59,7 @@
       "name": "Twilio Missed Call",
       "type": "n8n-nodes-base.twilio",
       "typeVersion": 1,
-      "position": [690, 200],
+      "position": [910, 200],
       "credentials": { "twilioApi": { "id": "1", "name": "Twilio" } }
     },
     {
@@ -55,7 +72,7 @@
       "name": "Twilio Confirmation",
       "type": "n8n-nodes-base.twilio",
       "typeVersion": 1,
-      "position": [690, 400],
+      "position": [910, 400],
       "credentials": { "twilioApi": { "id": "1", "name": "Twilio" } }
     },
     {
@@ -67,11 +84,17 @@
       "name": "Respond",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [910, 300]
+      "position": [1130, 300]
     }
   ],
   "connections": {
-    "Webhook": { "main": [[{ "node": "Message Type", "type": "main", "index": 0 }]] },
+    "Webhook": { "main": [[{ "node": "Is Readiness Check", "type": "main", "index": 0 }]] },
+    "Is Readiness Check": {
+      "main": [
+        [{ "node": "Respond", "type": "main", "index": 0 }],
+        [{ "node": "Message Type", "type": "main", "index": 0 }]
+      ]
+    },
     "Message Type": {
       "main": [
         [{ "node": "Twilio Missed Call", "type": "main", "index": 0 }],

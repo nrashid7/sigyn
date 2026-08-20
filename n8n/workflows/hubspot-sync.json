@@ -16,6 +16,23 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.body.metadata?.beta_readiness_check === true }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-readiness",
+      "name": "Is Readiness Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
         "resource": "contact",
         "operation": "createOrUpdate",
         "email": "={{ $json.body.contact.email }}",
@@ -29,7 +46,7 @@
       "name": "HubSpot Create Contact",
       "type": "n8n-nodes-base.hubspot",
       "typeVersion": 2,
-      "position": [470, 300],
+      "position": [690, 300],
       "credentials": { "hubspotApi": { "id": "1", "name": "HubSpot" } }
     },
     {
@@ -43,7 +60,7 @@
       "name": "HubSpot Add Note",
       "type": "n8n-nodes-base.hubspot",
       "typeVersion": 2,
-      "position": [690, 300],
+      "position": [910, 300],
       "credentials": { "hubspotApi": { "id": "1", "name": "HubSpot" } }
     },
     {
@@ -55,11 +72,17 @@
       "name": "Respond",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [910, 300]
+      "position": [1130, 300]
     }
   ],
   "connections": {
-    "Webhook": { "main": [[{ "node": "HubSpot Create Contact", "type": "main", "index": 0 }]] },
+    "Webhook": { "main": [[{ "node": "Is Readiness Check", "type": "main", "index": 0 }]] },
+    "Is Readiness Check": {
+      "main": [
+        [{ "node": "Respond", "type": "main", "index": 0 }],
+        [{ "node": "HubSpot Create Contact", "type": "main", "index": 0 }]
+      ]
+    },
     "HubSpot Create Contact": { "main": [[{ "node": "HubSpot Add Note", "type": "main", "index": 0 }]] },
     "HubSpot Add Note": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
   },

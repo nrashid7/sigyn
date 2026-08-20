@@ -30,7 +30,7 @@ export function AgentShowcase({ templates }: AgentShowcaseProps) {
         </motion.div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {templates.map((template, i) => (
+          {templates.filter((template) => ["Dexter", "Zia", "Sparky", "Bella"].includes(template.agent_name)).map((template, i) => (
             <MarketingAgentCard key={template.agent_name} template={template} index={i} />
           ))}
         </div>

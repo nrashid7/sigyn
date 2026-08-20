@@ -1,5 +1,6 @@
 import { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { AppError } from "./errors.ts";
+import { decryptCredential, encryptCredential } from "./credential-crypto.ts";
 
 export interface TimeSlot {
   start: string;
@@ -27,10 +28,12 @@ export interface BookingRequest {
 }
 
 interface IntegrationRow {
+  id: string;
   provider: string;
   config: Record<string, unknown>;
   access_token: string | null;
   refresh_token: string | null;
+  expires_at?: string | null;
 }
 
 export async function getCalendarIntegration(
@@ -39,7 +42,7 @@ export async function getCalendarIntegration(
 ): Promise<IntegrationRow | null> {
   const { data, error } = await supabase
     .from("integrations")
-    .select("provider, config, access_token, refresh_token")
+    .select("id, provider, config, integration_credentials(access_token_encrypted,refresh_token_encrypted,expires_at)")
     .eq("business_id", businessId)
     .eq("is_active", true)
     .in("provider", ["google_calendar", "calendly", "cal_com"])
@@ -50,7 +53,46 @@ export async function getCalendarIntegration(
     throw new AppError(`Failed to fetch integration: ${error.message}`, 500);
   }
 
-  return data;
+  if (!data) return null;
+  const credentials = Array.isArray(data.integration_credentials)
+    ? data.integration_credentials[0]
+    : data.integration_credentials;
+  const integration = {
+    id: data.id,
+    provider: data.provider,
+    config: data.config,
+    access_token: await decryptCredential(credentials?.access_token_encrypted),
+    refresh_token: await decryptCredential(credentials?.refresh_token_encrypted),
+    expires_at: credentials?.expires_at,
+  };
+  if (integration.provider === "google_calendar" && integration.refresh_token &&
+    (!integration.expires_at || new Date(integration.expires_at).getTime() < Date.now() + 60_000)) {
+    const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
+    const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
+    if (!clientId || !clientSecret) throw new AppError("Google OAuth refresh is not configured", 500);
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId, client_secret: clientSecret,
+        refresh_token: integration.refresh_token, grant_type: "refresh_token",
+      }),
+    });
+    if (!response.ok) {
+      await supabase.from("integration_credentials").update({ refresh_status: "failed" }).eq("integration_id", integration.id);
+      throw new AppError("Google Calendar authorization has expired; reconnect it", 409, "OAUTH_REFRESH_FAILED");
+    }
+    const token = await response.json() as { access_token: string; expires_in?: number };
+    integration.access_token = token.access_token;
+    integration.expires_at = new Date(Date.now() + (token.expires_in ?? 3600) * 1000).toISOString();
+    await supabase.from("integration_credentials").update({
+      access_token_encrypted: await encryptCredential(token.access_token),
+      expires_at: integration.expires_at,
+      refresh_status: "valid",
+      last_refreshed_at: new Date().toISOString(),
+    }).eq("integration_id", integration.id);
+  }
+  return integration;
 }
 
 export async function checkAvailability(
@@ -60,7 +102,7 @@ export async function checkAvailability(
   const integration = await getCalendarIntegration(supabase, request.businessId);
 
   if (!integration) {
-    return generateDefaultSlots(request);
+    throw new AppError("A real calendar connection is required before checking availability", 409, "CALENDAR_REQUIRED");
   }
 
   switch (integration.provider) {
@@ -71,7 +113,7 @@ export async function checkAvailability(
     case "cal_com":
       return await checkCalComAvailability(integration, request);
     default:
-      return generateDefaultSlots(request);
+      throw new AppError("Unsupported calendar integration", 409);
   }
 }
 
@@ -82,8 +124,8 @@ export async function createBooking(
   const integration = await getCalendarIntegration(supabase, request.businessId);
   let externalId: string | undefined;
 
-  if (integration) {
-    switch (integration.provider) {
+  if (!integration) throw new AppError("A real calendar connection is required before booking", 409, "CALENDAR_REQUIRED");
+  switch (integration.provider) {
       case "google_calendar":
         externalId = await bookGoogleCalendar(integration, request);
         break;
@@ -93,7 +135,8 @@ export async function createBooking(
       case "cal_com":
         externalId = await bookCalCom(integration, request);
         break;
-    }
+    default:
+      throw new AppError("Unsupported calendar integration", 409);
   }
 
   const { data, error } = await supabase
@@ -158,7 +201,7 @@ async function checkGoogleCalendarAvailability(
 ): Promise<TimeSlot[]> {
   const calendarId = (integration.config.calendar_id as string) ?? "primary";
   const token = integration.access_token;
-  if (!token) return generateDefaultSlots(request);
+  if (!token) throw new AppError("Google Calendar credentials are unavailable", 409);
 
   const timeMin = new Date(request.startDate).toISOString();
   const timeMax = new Date(
@@ -180,8 +223,7 @@ async function checkGoogleCalendarAvailability(
   });
 
   if (!response.ok) {
-    console.warn("[calendar] Google freeBusy failed, using defaults");
-    return generateDefaultSlots(request);
+    throw new AppError(`Google Calendar availability failed (${response.status})`, 502);
   }
 
   const data = await response.json();
@@ -202,7 +244,7 @@ async function checkCalendlyAvailability(
 ): Promise<TimeSlot[]> {
   const token = integration.access_token;
   const eventTypeUri = integration.config.event_type_uri as string;
-  if (!token || !eventTypeUri) return generateDefaultSlots(request);
+  if (!token || !eventTypeUri) throw new AppError("Calendly is not fully configured", 409);
 
   const params = new URLSearchParams({
     event_type: eventTypeUri,
@@ -217,7 +259,7 @@ async function checkCalendlyAvailability(
     { headers: { Authorization: `Bearer ${token}` } },
   );
 
-  if (!response.ok) return generateDefaultSlots(request);
+  if (!response.ok) throw new AppError(`Calendly availability failed (${response.status})`, 502);
 
   const data = await response.json();
   const duration = request.durationMinutes ?? 30;
@@ -235,7 +277,7 @@ async function checkCalComAvailability(
 ): Promise<TimeSlot[]> {
   const apiKey = integration.access_token ?? (integration.config.api_key as string);
   const eventTypeId = integration.config.event_type_id as string;
-  if (!apiKey || !eventTypeId) return generateDefaultSlots(request);
+  if (!apiKey || !eventTypeId) throw new AppError("Cal.com is not fully configured", 409);
 
   const params = new URLSearchParams({
     startTime: new Date(request.startDate).toISOString(),
@@ -250,7 +292,7 @@ async function checkCalComAvailability(
     { headers: { Authorization: `Bearer ${apiKey}` } },
   );
 
-  if (!response.ok) return generateDefaultSlots(request);
+  if (!response.ok) throw new AppError(`Cal.com availability failed (${response.status})`, 502);
 
   const data = await response.json();
   const duration = request.durationMinutes ?? 30;

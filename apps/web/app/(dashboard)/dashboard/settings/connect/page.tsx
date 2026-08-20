@@ -27,7 +27,10 @@ const providerLabels: Record<string, { title: string; fields: Array<{ key: strin
   },
   google_sheets: {
     title: "Connect Google Sheets",
-    fields: [{ key: "sheet_id", label: "Spreadsheet ID" }],
+    fields: [
+      { key: "sheet_id", label: "Spreadsheet ID" },
+      { key: "access_token", label: "Google OAuth Access Token", type: "password" },
+    ],
   },
 };
 

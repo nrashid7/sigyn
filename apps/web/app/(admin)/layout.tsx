@@ -1,18 +1,26 @@
 import Link from "next/link";
-import { Shield, LayoutTemplate, Building2 } from "lucide-react";
+import { redirect } from "next/navigation";
+import { Shield, LayoutTemplate, Building2, ListChecks, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getProfile } from "@/lib/actions/auth";
+
+export const dynamic = "force-dynamic";
 
 const adminNav = [
   { href: "/admin", label: "Overview", icon: Shield },
   { href: "/admin/templates", label: "Templates", icon: LayoutTemplate },
   { href: "/admin/businesses", label: "Businesses", icon: Building2 },
+  { href: "/admin/facts", label: "Fact review", icon: ListChecks },
+  { href: "/admin/agents", label: "Agent launches", icon: Bot },
 ];
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const profile = await getProfile();
+  if (profile?.role !== "admin") redirect("/dashboard");
   return (
     <div className="flex min-h-screen bg-mesh">
       <aside className="w-64 border-r border-border glass-strong flex flex-col">

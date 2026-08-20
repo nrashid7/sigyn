@@ -3,17 +3,29 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "npm@10.9.2",
+  "engines": {
+    "node": "24.19.0",
+    "npm": "10.9.2"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/**/*.test.ts\"",
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
+    "verify:beta-launch": "node scripts/beta-launch-readiness.mjs",
+    "verify:production": "node scripts/production-readiness.mjs",
     "setup:n8n": "powershell -ExecutionPolicy Bypass -File scripts/apply-n8n-railway.ps1",
-    "deploy:n8n": "node scripts/deploy-n8n-workflows.mjs"
+    "deploy:n8n": "node scripts/deploy-n8n-workflows.mjs",
+    "sync:retell-catalog": "node scripts/sync-retell-catalog.mjs",
+    "sync:retell-knowledge": "node scripts/sync-retell-knowledge.mjs",
+    "create:beta-invite": "node scripts/create-beta-invite.mjs",
+    "set:production-controls": "node scripts/set-production-controls.mjs",
+    "test:retell-catalog": "node scripts/sync-retell-catalog.mjs --run-tests"
   },
   "devDependencies": {
     "turbo": "^2.5.4"

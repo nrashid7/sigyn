@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServiceRoleKey } from "@/lib/supabase/admin";
+import { enforceRateLimit, requestIp } from "@/lib/server/production-service";
 
 export async function POST(request: Request) {
   try {
+    await enforceRateLimit("voice_preview", requestIp(request));
     const body = await request.json();
     const { voice_id, text } = body as { voice_id?: string; text?: string };
 
@@ -39,6 +41,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Voice preview error:", error);
-    return NextResponse.json({ error: "Preview failed" }, { status: 500 });
+    const rateLimited = error instanceof Error && error.message.includes("Too many requests");
+    return NextResponse.json({ error: rateLimited ? "Voice preview limit reached" : "Preview failed" }, { status: rateLimited ? 429 : 500 });
   }
 }

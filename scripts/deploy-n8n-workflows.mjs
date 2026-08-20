@@ -96,9 +96,19 @@ async function testWebhooks() {
     "sheets-log",
   ];
   const payload = {
-    event: "test.ping",
+    event: "readiness_check",
     business_id: "00000000-0000-0000-0000-000000000001",
-    metadata: { source: "deploy-n8n-workflows.mjs" },
+    contact: {
+      name: "Beta Readiness",
+      phone: "+15555550100",
+      email: "beta-readiness@example.com",
+    },
+    call_summary: "Synthetic deployment smoke test.",
+    lead_score: 80,
+    pipeline_stage: "qualified_lead",
+    type: "missed_call",
+    phone: "+15555550100",
+    metadata: { beta_readiness_check: true, source: "deploy-n8n-workflows.mjs" },
   };
 
   console.log("\nWebhook smoke test:");

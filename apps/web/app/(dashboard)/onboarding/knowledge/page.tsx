@@ -27,6 +27,7 @@ export default function OnboardingKnowledgePage() {
         setError(result.error);
       } else {
         setUploaded((prev) => [...prev, file.name]);
+        if (result?.warning) setError(result.warning);
       }
     }
     setUploading(false);
@@ -41,7 +42,7 @@ export default function OnboardingKnowledgePage() {
     <OnboardingLayout
       currentStep={2}
       title="Upload your knowledge base"
-      description="Help your AI employee answer questions about your business, services, and policies."
+      description="Files publish directly to Retell so your AI employee can use them during calls after indexing."
     >
       <div className="space-y-6">
         {error && (
@@ -55,7 +56,7 @@ export default function OnboardingKnowledgePage() {
           type="file"
           className="hidden"
           multiple
-          accept=".pdf,.docx,.txt,.csv,.doc"
+          accept=".pdf,.doc,.docx,.txt,.md"
           onChange={(e) => handleFiles(e.target.files)}
         />
 
@@ -74,7 +75,7 @@ export default function OnboardingKnowledgePage() {
             <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
           )}
           <p className="text-sm text-muted-foreground mb-4">
-            Drag & drop PDFs, DOCX, TXT, or CSV files here
+            Drag & drop PDF, DOC, DOCX, TXT, or Markdown files here
           </p>
           <Button type="button" variant="outline" onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}>
             Choose Files
@@ -86,13 +87,16 @@ export default function OnboardingKnowledgePage() {
             {uploaded.map((name) => (
               <li key={name} className="flex items-center gap-2 text-sm text-green-400">
                 <CheckCircle className="h-4 w-4" />
-                {name} — processing
+                {name} — publishing to calls
               </li>
             ))}
           </ul>
         )}
 
         <div className="space-y-2">
+          <p className="text-xs text-amber-300">
+            Do not upload secrets or regulated information callers should not be able to access.
+          </p>
           <p className="text-sm font-medium">Suggested documents:</p>
           <ul className="space-y-2 text-sm text-muted-foreground">
             <li className="flex items-center gap-2">

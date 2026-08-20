@@ -27,6 +27,16 @@ Run after deploying all services with valid API keys.
 | 4 | `/onboarding/call-preferences` | Set transfer rules | Preferences saved |
 | 5 | `/onboarding/voice` | Select agent + voice, click Hire | Retell agent created, redirect to dashboard |
 
+## Retell Knowledge
+
+1. Upload a small Markdown or PDF source containing one distinctive fact.
+2. Confirm the dashboard moves from **Publishing** to **Available to calls**.
+3. Call the business agent and ask for the distinctive fact; verify the answer is grounded in the uploaded source.
+4. Ask for an absent price or policy; verify the agent says it does not know and offers human follow-up.
+5. Add a public HTTPS website and confirm it reaches **Available to calls** without approving extracted facts.
+6. Delete the test source and confirm the row remains **Removing** until Retell confirms deletion.
+7. Temporarily use an invalid Retell credential in a non-production environment, verify **Publish failed** is visible, restore the credential, and verify Retry succeeds.
+
 ### 3. Live Call Test
 
 1. Note the phone number assigned to your agent (from dashboard/agents)
@@ -46,6 +56,7 @@ Run after deploying all services with valid API keys.
 
 ### 5. Automation Verification
 
+- **Launch gate:** Run `npm run verify:beta-launch -- --webhooks --supabase` → all n8n and Supabase checks pass
 - **Missed call:** Don't answer a call → SMS follow-up within 2 min (n8n + Twilio)
 - **CRM sync:** Complete a call → contact created in HubSpot/GHL/Sheets (n8n)
 - **Appointment:** Book via call → appointment in dashboard + calendar

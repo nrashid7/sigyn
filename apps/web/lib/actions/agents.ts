@@ -29,7 +29,8 @@ export async function hireAgent(templateId: string, name: string) {
     name,
     type: "inbound",
     voice_provider: "retell",
-    is_active: true,
+    lifecycle_status: "draft",
+    is_active: false,
   });
 
   if (error) return { error: error.message };
@@ -39,10 +40,15 @@ export async function hireAgent(templateId: string, name: string) {
 }
 
 export async function toggleAgent(id: string, isActive: boolean) {
+  if (isActive) return { error: "Only staff can activate a tested Retell deployment" };
   const supabase = await createClient();
   const { error } = await supabase
     .from("agents")
-    .update({ is_active: isActive })
+    .update({
+      is_active: isActive,
+      lifecycle_status: isActive ? "live" : "paused",
+    })
+    .not("retell_agent_id", "is", null)
     .eq("id", id);
 
   if (error) return { error: error.message };

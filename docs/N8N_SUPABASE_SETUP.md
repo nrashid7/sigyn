@@ -87,6 +87,32 @@ Import or verify these 5 workflows exist and are **Active**:
 
 Workflow JSON exports live in [`n8n/workflows/`](../n8n/workflows/).
 
+### Beta launch readiness gate
+
+Before beta launch, run:
+
+```bash
+npm run verify:beta-launch
+```
+
+This command checks the live n8n health endpoint, verifies the five BusinessVoice workflows are active, confirms each workflow has a side-effect-free readiness path, and checks whether required n8n credentials exist.
+
+After deploying the current workflow exports, also run:
+
+```bash
+npm run verify:beta-launch -- --webhooks
+```
+
+The `--webhooks` mode sends synthetic payloads with `metadata.beta_readiness_check=true`. These pings must return successful webhook responses without sending SMS messages, creating CRM contacts, or writing Google Sheets rows. If any required n8n credential is missing or any webhook dry-run fails, beta launch remains blocked.
+
+To include Supabase workflow sync and dispatch verification, load `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then run:
+
+```bash
+npm run verify:beta-launch -- --webhooks --supabase
+```
+
+The Supabase check requires at least one real beta test business row. Without one, the verifier intentionally blocks launch instead of treating the all-zero placeholder ID as production readiness.
+
 ### Getting Webhook URLs from n8n MCP
 
 Use the n8n MCP in Cursor to list workflows and copy production webhook URLs from each Webhook trigger node. The URL format is typically:

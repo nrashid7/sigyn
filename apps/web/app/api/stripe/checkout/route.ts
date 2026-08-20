@@ -2,9 +2,11 @@ import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getBusiness } from "@/lib/actions/business";
+import { requireServerEnv } from "@/lib/server/env";
+import { enforceRateLimit, requireProductionOperation } from "@/lib/server/production-service";
 
 function getStripe() {
-  return new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  return new Stripe(requireServerEnv("STRIPE_SECRET_KEY"), {
     apiVersion: "2025-08-27.basil",
   });
 }
@@ -37,10 +39,16 @@ async function createCheckout(plan: string, request: Request) {
 
     const priceId = PRICE_MAP[plan];
     if (!priceId) {
-      return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Billing is not configured for this plan" },
+        { status: 503 },
+      );
     }
 
     const business = await getBusiness();
+    if (!business) return NextResponse.json({ error: "No business found" }, { status: 404 });
+    await requireProductionOperation("billing");
+    await enforceRateLimit("billing_checkout", business.id);
     const origin = request.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL;
 
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
@@ -60,13 +68,13 @@ async function createCheckout(plan: string, request: Request) {
       cancel_url: `${origin}/dashboard/billing?canceled=true`,
       customer_email: user.email ?? undefined,
       metadata: {
-        business_id: business?.id || "",
+        business_id: business.id,
         user_id: user.id,
         plan,
       },
       subscription_data: {
         metadata: {
-          business_id: business?.id || "",
+          business_id: business.id,
           user_id: user.id,
           plan,
         },
@@ -76,6 +84,9 @@ async function createCheckout(plan: string, request: Request) {
     return NextResponse.redirect(session.url!, 303);
   } catch (error) {
     console.error("Stripe checkout error:", error);
-    return NextResponse.json({ error: "Checkout failed" }, { status: 500 });
+    const status = error instanceof Error && (error.message.includes("STRIPE_SECRET_KEY") || error.message.includes("paused"))
+      ? 503
+      : error instanceof Error && error.message.includes("Too many requests") ? 429 : 500;
+    return NextResponse.json({ error: "Checkout failed" }, { status });
   }
 }

@@ -1,0 +1,124 @@
+name: Tagged controlled-beta release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+          cache: npm
+      - run: npm install --global npm@10.9.2
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+
+  staging:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: staging
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      N8N_API_URL: ${{ secrets.N8N_API_URL }}
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24.19.0, cache: npm }
+      - uses: supabase/setup-cli@v1
+        with: { version: 2.81.3 }
+      - run: npm install --global npm@10.9.2 vercel@latest
+      - run: npm ci
+      - run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - run: supabase db push
+      - name: Deploy Edge Functions
+        run: |
+          for function in calendar-availability calendar-book call-analyze knowledge-ingest knowledge-search n8n-dispatch qualify-lead retell-create-agent retell-knowledge-sync retell-webhook stripe-webhook sync-n8n-workflows voice-preview; do
+            supabase functions deploy "$function" --project-ref "$SUPABASE_PROJECT_REF"
+          done
+      - run: npm run deploy:n8n
+      - run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+        working-directory: apps/web
+      - run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        working-directory: apps/web
+      - run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        working-directory: apps/web
+      - run: npm run verify:beta-launch -- --webhooks --supabase
+
+  production:
+    needs: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      N8N_API_URL: ${{ secrets.N8N_API_URL }}
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      PRODUCTION_APP_URL: ${{ vars.PRODUCTION_APP_URL }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_PRICE_STARTER: ${{ secrets.STRIPE_PRICE_STARTER }}
+      STRIPE_PRICE_PRO: ${{ secrets.STRIPE_PRICE_PRO }}
+      STRIPE_PRICE_SETUP: ${{ secrets.STRIPE_PRICE_SETUP }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24.19.0, cache: npm }
+      - uses: supabase/setup-cli@v1
+        with: { version: 2.81.3 }
+      - run: npm install --global npm@10.9.2 vercel@latest
+      - run: npm ci
+      - run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - run: supabase db push
+      - name: Deploy Edge Functions
+        run: |
+          for function in calendar-availability calendar-book call-analyze knowledge-ingest knowledge-search n8n-dispatch qualify-lead retell-create-agent retell-knowledge-sync retell-webhook stripe-webhook sync-n8n-workflows voice-preview; do
+            supabase functions deploy "$function" --project-ref "$SUPABASE_PROJECT_REF"
+          done
+      - run: npm run deploy:n8n
+      - run: npm run sync:retell-knowledge
+      - run: npm run sync:retell-knowledge -- --apply
+      - run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+        working-directory: apps/web
+      - run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        working-directory: apps/web
+      - run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        working-directory: apps/web
+      - name: Materialize release-matched smoke evidence
+        env:
+          PRODUCTION_SMOKE_EVIDENCE_JSON: ${{ secrets.PRODUCTION_SMOKE_EVIDENCE_JSON }}
+        run: |
+          test -n "$PRODUCTION_SMOKE_EVIDENCE_JSON"
+          printf '%s' "$PRODUCTION_SMOKE_EVIDENCE_JSON" > "$RUNNER_TEMP/production-evidence.json"
+      - name: Strict production certification
+        run: npm run verify:production -- --supabase --webhooks --live-integrations --base-url="$PRODUCTION_APP_URL" --release="${GITHUB_SHA}" --evidence="$RUNNER_TEMP/production-evidence.json"

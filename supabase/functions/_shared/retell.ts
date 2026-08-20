@@ -1,4 +1,12 @@
 import { AppError } from "./errors.ts";
+import type { RetellCustomTool } from "./retell-tools.ts";
+export { buildCustomToolsConfig } from "./retell-tools.ts";
+export {
+  addRetellKnowledgeSources,
+  createRetellKnowledgeBase,
+  deleteRetellKnowledgeSource,
+  getRetellKnowledgeBase,
+} from "./retell-knowledge-client.ts";
 
 const RETELL_API_BASE = "https://api.retellai.com";
 
@@ -18,7 +26,7 @@ async function retellFetch<T>(
     ...options,
     headers: {
       Authorization: `Bearer ${getRetellApiKey()}`,
-      "Content-Type": "application/json",
+      ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...(options.headers ?? {}),
     },
   });
@@ -37,20 +45,9 @@ export interface RetellLlmConfig {
   general_prompt?: string;
   begin_message?: string;
   general_tools?: RetellCustomTool[];
-}
-
-export interface RetellCustomTool {
-  type: "custom" | "transfer_call";
-  name: string;
-  description: string;
-  url?: string;
-  speak_during_execution?: boolean;
-  speak_after_execution?: boolean;
-  parameters?: Record<string, unknown>;
-  transfer_destination?: {
-    type: "predefined";
-    number: string;
-  };
+  tool_call_strict_mode?: boolean;
+  knowledge_base_ids?: string[];
+  kb_config?: { top_k?: number; filter_score?: number };
 }
 
 export interface RetellAgentConfig {
@@ -114,155 +111,4 @@ export async function createRetellPhoneNumber(
       ...(areaCode ? { area_code: areaCode } : {}),
     }),
   });
-}
-
-export function buildQualifyLeadTool(
-  functionUrl: string,
-  businessId: string,
-): RetellCustomTool {
-  return {
-    type: "custom",
-    name: "qualify_lead",
-    description: "Record lead qualification answers and score the lead.",
-    url: functionUrl,
-    speak_during_execution: false,
-    speak_after_execution: true,
-    parameters: {
-      type: "object",
-      properties: {
-        business_id: { type: "string", const: businessId },
-        call_id: { type: "string", description: "Current call ID if available" },
-        name: { type: "string" },
-        email: { type: "string" },
-        company: { type: "string" },
-        need: { type: "string" },
-        timeline: { type: "string" },
-        budget: { type: "string" },
-        lead_score: { type: "number", description: "0-100 lead quality score" },
-      },
-      required: ["business_id", "name", "lead_score"],
-    },
-  };
-}
-
-export function buildTransferCallTool(transferNumber?: string): RetellCustomTool | null {
-  if (!transferNumber) return null;
-  return {
-    type: "transfer_call",
-    name: "transfer_call",
-    description: "Transfer the caller to a human team member when requested or for emergencies.",
-    transfer_destination: {
-      type: "predefined",
-      number: transferNumber,
-    },
-  };
-}
-
-export function buildKnowledgeSearchTool(
-  functionUrl: string,
-  businessId: string,
-): RetellCustomTool {
-  return {
-    type: "custom",
-    name: "search_knowledge",
-    description: "Search the business knowledge base for answers to caller questions.",
-    url: functionUrl,
-    speak_during_execution: true,
-    speak_after_execution: true,
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "The search query based on the caller's question",
-        },
-        business_id: {
-          type: "string",
-          description: "Business ID",
-          const: businessId,
-        },
-      },
-      required: ["query", "business_id"],
-    },
-  };
-}
-
-export function buildCalendarTools(
-  availabilityUrl: string,
-  bookUrl: string,
-  businessId: string,
-): RetellCustomTool[] {
-  return [
-    {
-      type: "custom",
-      name: "check_availability",
-      description: "Check available appointment slots for a given date range.",
-      url: availabilityUrl,
-      speak_during_execution: true,
-      speak_after_execution: true,
-      parameters: {
-        type: "object",
-        properties: {
-          business_id: { type: "string", const: businessId },
-          start_date: { type: "string", description: "ISO date start" },
-          end_date: { type: "string", description: "ISO date end" },
-          duration_minutes: { type: "number", description: "Appointment duration" },
-        },
-        required: ["business_id", "start_date"],
-      },
-    },
-    {
-      type: "custom",
-      name: "book_appointment",
-      description: "Book an appointment for the caller.",
-      url: bookUrl,
-      speak_during_execution: true,
-      speak_after_execution: true,
-      parameters: {
-        type: "object",
-        properties: {
-          business_id: { type: "string", const: businessId },
-          scheduled_at: { type: "string", description: "ISO datetime" },
-          customer_name: { type: "string" },
-          customer_phone: { type: "string" },
-          customer_email: { type: "string" },
-          duration_minutes: { type: "number" },
-          notes: { type: "string" },
-        },
-        required: ["business_id", "scheduled_at", "customer_name", "customer_phone"],
-      },
-    },
-  ];
-}
-
-export function buildCustomToolsConfig(
-  supabaseUrl: string,
-  businessId: string,
-  options: {
-    includeCalendar?: boolean;
-    transferNumber?: string;
-  } = {},
-): RetellCustomTool[] {
-  const base = `${supabaseUrl}/functions/v1`;
-  const tools: RetellCustomTool[] = [
-    buildKnowledgeSearchTool(`${base}/knowledge-search`, businessId),
-    buildQualifyLeadTool(`${base}/qualify-lead`, businessId),
-  ];
-
-  if (options.includeCalendar) {
-    tools.push(
-      ...buildCalendarTools(
-        `${base}/calendar-availability`,
-        `${base}/calendar-book`,
-        businessId,
-      ),
-    );
-  }
-
-  const transferTool = buildTransferCallTool(options.transferNumber);
-  if (transferTool) {
-    tools.push(transferTool);
-  }
-
-  return tools;
 }

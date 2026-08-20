@@ -12,6 +12,8 @@
 | Billing | Stripe |
 | Analytics | PostHog |
 
+The existing hosted stack is staging. Production must use dedicated provider projects, a protected GitHub `production` Environment, and an owned hostname supplied as `PRODUCTION_APP_URL`. Never reuse staging credentials in production.
+
 ## 1. Supabase Setup
 
 ```bash
@@ -45,6 +47,8 @@ supabase functions deploy calendar-book
 supabase functions deploy stripe-webhook
 supabase functions deploy n8n-dispatch
 supabase functions deploy voice-preview
+supabase functions deploy retell-knowledge-sync
+supabase functions deploy sync-n8n-workflows
 ```
 
 ### Enable Google Auth in Supabase Dashboard
@@ -53,11 +57,29 @@ supabase functions deploy voice-preview
 2. Add OAuth credentials from Google Cloud Console
 3. Set redirect URL: `https://YOUR_PROJECT.supabase.co/auth/v1/callback`
 
+### Enable controlled-beta auth enforcement
+
+In Authentication > Hooks, select the Postgres `before-user-created` hook `public.hook_restrict_beta_signup`. Confirm email verification, leaked-password protection, and MFA for operators are enabled. Create invitations only with `npm run create:beta-invite -- --email=owner@example.com`.
+
 ### Storage Bucket
 
 The migration creates a `knowledge` bucket automatically. Verify in Storage settings.
 
 ## 2. Retell AI Setup
+
+### Native knowledge synchronization
+
+Sigyn uses one native Retell knowledge base per business. Supabase retains the original files and URLs; the `retell-knowledge-sync` Edge Function publishes them to Retell and attaches the shared KB to every business agent.
+
+1. Apply `supabase/migrations/20260808210000_retell_knowledge_sync.sql`.
+2. Deploy the authenticated function: `supabase functions deploy retell-knowledge-sync`.
+3. Confirm `RETELL_API_KEY`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY` are configured as Edge Function secrets.
+4. Preview existing-source migration with `npm run sync:retell-knowledge`.
+5. Apply it with `npm run sync:retell-knowledge -- --apply` after reviewing the dry-run counts. Limit a run with `--business=<uuid>`.
+
+The command never changes provider state without `--apply`. Failed sources remain in Supabase and are retryable from the Knowledge dashboard.
+
+Rollback keeps the additive database records and Retell sources intact. Restore the prior LLM tool configuration only if native retrieval must be disabled; do not delete business KBs during an incident.
 
 1. Create account at [retellai.com](https://retellai.com)
 2. Copy API key to Supabase secrets
@@ -81,6 +103,8 @@ vercel --prod
 Set all environment variables from [ENVIRONMENT.md](./ENVIRONMENT.md) in Vercel project settings.
 
 Root directory: `apps/web`
+
+Configure `CRON_SECRET`; Vercel invokes `/api/cron/retention` daily. Configure Sentry release upload with `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, and `SENTRY_AUTH_TOKEN`.
 
 ## 4. Stripe Setup
 
@@ -125,6 +149,16 @@ Root directory: `apps/web`
 - [ ] Verify CRM sync via n8n
 - [ ] Subscribe via Stripe checkout
 - [ ] Access admin panel (set `profiles.role = 'admin'` in Supabase)
+
+After recording provider evidence identifiers, run the strict immutable-release gate:
+
+```bash
+npm run verify:production -- --supabase --webhooks --live-integrations \
+  --base-url="$PRODUCTION_APP_URL" --release="$RELEASE_SHA" \
+  --evidence="$PRODUCTION_SMOKE_EVIDENCE_PATH"
+```
+
+The command must finish with zero failures, warnings, and skipped checks. Follow `docs/PRODUCTION_OPERATIONS.md` for alerts, rollback, restore testing, rotation, and the 24-hour soak.
 
 ## Local Development
 

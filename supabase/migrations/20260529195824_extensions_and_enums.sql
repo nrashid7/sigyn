@@ -1,0 +1,2 @@
+-- Remote project history placeholder.
+-- This schema is represented locally by 20250524000001_initial_schema.sql.

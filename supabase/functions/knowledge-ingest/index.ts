@@ -8,6 +8,7 @@ import {
 } from "../_shared/errors.ts";
 import { chunkText, embedTexts } from "../_shared/embeddings.ts";
 import { captureBusinessEvent } from "../_shared/analytics.ts";
+import { assertServiceRole } from "../_shared/auth.ts";
 
 interface IngestRequest {
   document_id: string;
@@ -104,6 +105,7 @@ Deno.serve(async (req) => {
   let documentId: string | undefined;
 
   try {
+    assertServiceRole(req);
     const body = await parseJsonBody<IngestRequest>(req);
     documentId = body.document_id;
     if (!documentId) {

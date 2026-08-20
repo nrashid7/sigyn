@@ -1,17 +1,9 @@
 import { NextResponse } from "next/server";
 import { integrationConnectSchema } from "@businessvoice/shared";
-import { createClient } from "@/lib/supabase/server";
-import { getBusiness } from "@/lib/actions/business";
+import { connectIntegration } from "@/lib/actions/integrations";
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const body = await request.json();
     const parsed = integrationConnectSchema.safeParse(body);
 
@@ -22,23 +14,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const business = await getBusiness();
-    if (!business) {
-      return NextResponse.json({ error: "No business found" }, { status: 404 });
+    const result = await connectIntegration(parsed.data.provider, parsed.data.config || {});
+    if (result.error) {
+      const status = result.error === "No business found" ? 404 : 400;
+      return NextResponse.json({ error: result.error }, { status });
     }
-
-    const { error } = await supabase.from("integrations").upsert({
-      business_id: business.id,
-      provider: parsed.data.provider,
-      config: parsed.data.config || {},
-      is_active: true,
-    });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Integration connect error:", error);
     return NextResponse.json({ error: "Connection failed" }, { status: 500 });

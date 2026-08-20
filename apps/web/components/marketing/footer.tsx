@@ -10,13 +10,14 @@ const footerLinks = {
   Agents: [
     { label: "Dexter", href: "#agents" },
     { label: "Zia", href: "#agents" },
-    { label: "Sunny", href: "#agents" },
     { label: "Sparky", href: "#agents" },
     { label: "Bella", href: "#agents" },
   ],
   Start: [
     { label: "Book a Demo", href: "#demo" },
     { label: "Try a Live Call", href: "#demo" },
+    { label: "Privacy", href: "/privacy" },
+    { label: "Terms", href: "/terms" },
   ],
 };
 
@@ -42,12 +43,12 @@ export function Footer() {
               <ul className="mt-4 grid gap-2">
                 {links.map((link) => (
                   <li key={link.label}>
-                    <a
+                    <Link
                       href={link.href}
                       className="text-sm text-slate-300 transition-colors hover:text-white"
                     >
                       {link.label}
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>

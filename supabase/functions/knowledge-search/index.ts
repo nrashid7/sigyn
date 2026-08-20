@@ -6,6 +6,7 @@ import {
   jsonResponse,
   parseJsonBody,
 } from "../_shared/errors.ts";
+import { assertServiceRole } from "../_shared/auth.ts";
 import { searchKnowledge, formatKnowledgeContext } from "../_shared/retrieval.ts";
 
 interface SearchRequest {
@@ -36,6 +37,7 @@ Deno.serve(async (req) => {
   }
 
   try {
+    assertServiceRole(req);
     const raw = await parseJsonBody<SearchRequest | RetellToolRequest>(req);
 
     const query = "query" in raw && raw.query

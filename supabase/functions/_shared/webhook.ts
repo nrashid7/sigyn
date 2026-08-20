@@ -1,4 +1,5 @@
 import { AppError } from "./errors.ts";
+import { verifyRetellSignatureValue } from "./retell-signature.ts";
 
 export async function verifyHmacSignature(
   payload: string,
@@ -52,7 +53,7 @@ export async function verifyRetellSignature(
   }
 
   const signature = req.headers.get("x-retell-signature");
-  const valid = await verifyHmacSignature(rawBody, signature, secret);
+  const valid = await verifyRetellSignatureValue(rawBody, signature, secret);
   if (!valid) {
     throw new AppError("Invalid Retell webhook signature", 401, "INVALID_SIGNATURE");
   }

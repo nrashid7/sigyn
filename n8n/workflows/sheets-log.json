@@ -16,6 +16,23 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.body.metadata?.beta_readiness_check === true }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-readiness",
+      "name": "Is Readiness Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
         "operation": "append",
         "documentId": "={{ $json.body.metadata.sheet_id }}",
         "sheetName": "Calls",
@@ -36,7 +53,7 @@
       "name": "Google Sheets Append",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [470, 300],
+      "position": [690, 300],
       "credentials": { "googleSheetsOAuth2Api": { "id": "1", "name": "Google Sheets" } }
     },
     {
@@ -48,11 +65,17 @@
       "name": "Respond",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [690, 300]
+      "position": [910, 300]
     }
   ],
   "connections": {
-    "Webhook": { "main": [[{ "node": "Google Sheets Append", "type": "main", "index": 0 }]] },
+    "Webhook": { "main": [[{ "node": "Is Readiness Check", "type": "main", "index": 0 }]] },
+    "Is Readiness Check": {
+      "main": [
+        [{ "node": "Respond", "type": "main", "index": 0 }],
+        [{ "node": "Google Sheets Append", "type": "main", "index": 0 }]
+      ]
+    },
     "Google Sheets Append": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1" },

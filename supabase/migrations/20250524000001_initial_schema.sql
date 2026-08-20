@@ -258,23 +258,37 @@ CREATE INDEX idx_knowledge_chunks_embedding ON knowledge_chunks
 
 -- Helper: check business membership
 CREATE OR REPLACE FUNCTION is_business_member(bid UUID)
-RETURNS BOOLEAN AS $$
+RETURNS BOOLEAN
+LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public
+AS $$
   SELECT EXISTS (
     SELECT 1 FROM business_members
     WHERE business_id = bid AND user_id = auth.uid()
   );
-$$ LANGUAGE sql SECURITY DEFINER STABLE;
+$$;
 
 CREATE OR REPLACE FUNCTION is_admin()
-RETURNS BOOLEAN AS $$
+RETURNS BOOLEAN
+LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public
+AS $$
   SELECT EXISTS (
     SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
   );
-$$ LANGUAGE sql SECURITY DEFINER STABLE;
+$$;
+
+REVOKE EXECUTE ON FUNCTION is_business_member(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION is_business_member(UUID) TO authenticated;
+REVOKE EXECUTE ON FUNCTION is_admin() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION is_admin() TO authenticated;
 
 -- Auto-create profile on signup
 CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   INSERT INTO profiles (id, email, full_name, avatar_url)
   VALUES (
@@ -285,7 +299,9 @@ BEGIN
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
+
+REVOKE EXECUTE ON FUNCTION handle_new_user() FROM PUBLIC;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
@@ -293,12 +309,15 @@ CREATE TRIGGER on_auth_user_created
 
 -- Updated_at trigger
 CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
 BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 CREATE TRIGGER profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER businesses_updated_at BEFORE UPDATE ON businesses FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -329,21 +348,23 @@ ALTER TABLE workflows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sms_messages ENABLE ROW LEVEL SECURITY;
 
 -- Profiles policies
-CREATE POLICY profiles_select ON profiles FOR SELECT USING (id = auth.uid() OR is_admin());
-CREATE POLICY profiles_update ON profiles FOR UPDATE USING (id = auth.uid());
+CREATE POLICY profiles_select ON profiles FOR SELECT USING (id = (select auth.uid()) OR is_admin());
+CREATE POLICY profiles_update ON profiles FOR UPDATE USING (id = (select auth.uid()));
 
 -- Agent templates (public read for active)
 CREATE POLICY agent_templates_select ON agent_templates FOR SELECT USING (is_active = TRUE OR is_admin());
-CREATE POLICY agent_templates_admin ON agent_templates FOR ALL USING (is_admin());
+CREATE POLICY agent_templates_admin_insert ON agent_templates FOR INSERT WITH CHECK (is_admin());
+CREATE POLICY agent_templates_admin_update ON agent_templates FOR UPDATE USING (is_admin()) WITH CHECK (is_admin());
+CREATE POLICY agent_templates_admin_delete ON agent_templates FOR DELETE USING (is_admin());
 
 -- Businesses
 CREATE POLICY businesses_select ON businesses FOR SELECT USING (is_business_member(id) OR is_admin());
-CREATE POLICY businesses_insert ON businesses FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY businesses_insert ON businesses FOR INSERT WITH CHECK ((select auth.uid()) IS NOT NULL);
 CREATE POLICY businesses_update ON businesses FOR UPDATE USING (is_business_member(id) OR is_admin());
 
 -- Business members
-CREATE POLICY business_members_select ON business_members FOR SELECT USING (user_id = auth.uid() OR is_business_member(business_id) OR is_admin());
-CREATE POLICY business_members_insert ON business_members FOR INSERT WITH CHECK (user_id = auth.uid() OR is_admin());
+CREATE POLICY business_members_select ON business_members FOR SELECT USING (user_id = (select auth.uid()) OR is_business_member(business_id) OR is_admin());
+CREATE POLICY business_members_insert ON business_members FOR INSERT WITH CHECK (user_id = (select auth.uid()) OR is_admin());
 
 -- Tenant-scoped tables
 CREATE POLICY agents_all ON agents FOR ALL USING (is_business_member(business_id) OR is_admin());
@@ -385,6 +406,7 @@ RETURNS TABLE (
   similarity FLOAT
 )
 LANGUAGE sql STABLE
+SET search_path = public
 AS $$
   SELECT
     kc.id,
