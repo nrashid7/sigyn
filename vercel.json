@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npx turbo build --filter=web",
+  "installCommand": "npx --yes npm@10.9.2 ci",
+  "outputDirectory": "apps/web/.next",
+  "crons": [
+    {
+      "path": "/api/cron/retention",
+      "schedule": "17 4 * * *"
+    }
+  ]
+}

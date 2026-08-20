@@ -72,6 +72,33 @@ test("production controls migration enforces invite-only signup, a ten-account c
   assert.match(sql, /consume_rate_limit/i);
   assert.match(sql, /signup_enabled/i);
   assert.match(sql, /automation_dispatch_enabled/i);
+  assert.doesNotMatch(sql, /pg_catalog\.extract\s*\(/i);
+  assert.match(sql, /EXTRACT\s*\(\s*epoch\s+FROM/i);
+  assert.doesNotMatch(sql, /pg_catalog\.greatest\s*\(/i);
+  assert.match(sql, /GREATEST\s*\(/i);
+});
+
+test("database hardening relocates pgvector and indexes every production foreign key", () => {
+  const hardening = readFileSync(
+    new URL("../supabase/migrations/20260820160000_database_advisor_hardening.sql", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(hardening, /ALTER EXTENSION vector SET SCHEMA extensions/i);
+  for (const columns of [
+    "agents(template_id)",
+    "appointments(agent_id)",
+    "appointments(call_id)",
+    "beta_invitations(created_by)",
+    "calls(agent_id)",
+    "sms_messages(business_id)",
+    "sms_messages(call_id)",
+    "system_controls(updated_by)",
+    "usage_records(call_id)",
+    "workflows(business_id)",
+  ]) {
+    assert.ok(hardening.replaceAll(/\s+/g, "").includes(`ONpublic.${columns}`));
+  }
 });
 
 test("production runtime validates invitations and consumes database-backed limits", async () => {

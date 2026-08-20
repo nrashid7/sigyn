@@ -12,6 +12,10 @@ for (const filename of [".env", ".env.local", "apps/web/.env.local"]) {
 
 const apiKey = process.env.RETELL_API_KEY;
 if (!apiKey) throw new Error("RETELL_API_KEY is required");
+const webhookUrl = process.env.RETELL_WEBHOOK_URL || (process.env.NEXT_PUBLIC_SUPABASE_URL
+  ? `${process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/\/$/, "")}/functions/v1/retell-webhook`
+  : "");
+if (!webhookUrl) throw new Error("RETELL_WEBHOOK_URL or NEXT_PUBLIC_SUPABASE_URL is required");
 const headers = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
 async function api(pathname, init = {}) {
   const response = await fetch(`https://api.retellai.com${pathname}`, {
@@ -66,10 +70,16 @@ for (const template of templates) {
       agent_name: agentName, version_description: `Sigyn managed launch template ${template.slug} v${version}`,
       voice_id: "retell-Cimo", response_engine: { type: "retell-llm", llm_id: llmId },
       language: "en-US", ambient_sound: "call-center", enable_backchannel: true,
+      webhook_url: webhookUrl,
+      webhook_events: ["call_started", "call_ended", "call_analyzed"],
       data_storage_setting: "everything_except_pii", data_storage_retention_days: 90,
       handbook_config: { ai_disclosure: true, scope_boundaries: true, high_empathy: true, echo_verification: true },
     }) });
   }
+  await api(`/update-agent/${agent.agent_id}`, { method: "PATCH", body: JSON.stringify({
+    webhook_url: webhookUrl,
+    webhook_events: ["call_started", "call_ended", "call_analyzed"],
+  }) });
   await api(`/update-retell-llm/${llmId}`, { method: "PATCH", body: JSON.stringify({
     model: "gpt-4.1-mini", model_temperature: 0.2, tool_call_strict_mode: true,
     general_prompt: prompt,

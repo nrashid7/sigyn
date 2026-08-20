@@ -130,7 +130,7 @@ BEGIN
     RAISE EXCEPTION 'Invalid rate limit request';
   END IF;
   current_window := pg_catalog.to_timestamp(
-    pg_catalog.floor(pg_catalog.extract(epoch FROM pg_catalog.now()) / p_window_seconds) * p_window_seconds
+    pg_catalog.floor(EXTRACT(epoch FROM pg_catalog.now()) / p_window_seconds) * p_window_seconds
   );
   PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_bucket || ':' || p_key_hash, 0));
   INSERT INTO public.rate_limit_windows (bucket, key_hash, window_start, request_count, expires_at)
@@ -140,8 +140,8 @@ BEGIN
   RETURNING request_count INTO current_count;
   RETURN QUERY SELECT
     current_count <= p_limit,
-    pg_catalog.greatest(p_limit - current_count, 0),
-    pg_catalog.greatest(pg_catalog.ceil(pg_catalog.extract(epoch FROM ((current_window + pg_catalog.make_interval(secs => p_window_seconds)) - pg_catalog.now())))::integer, 0);
+    GREATEST(p_limit - current_count, 0),
+    GREATEST(pg_catalog.ceil(EXTRACT(epoch FROM ((current_window + pg_catalog.make_interval(secs => p_window_seconds)) - pg_catalog.now())))::integer, 0);
 END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.consume_rate_limit(text, text, integer, integer) FROM PUBLIC, anon, authenticated;

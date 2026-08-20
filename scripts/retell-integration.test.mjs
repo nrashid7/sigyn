@@ -15,6 +15,7 @@ const templateSource = readFileSync("packages/shared/src/templates/index.ts", "u
 const voicesSource = readFileSync("packages/shared/src/templates/voices.ts", "utf8");
 const crmSharedSource = readFileSync("supabase/functions/_shared/crm.ts", "utf8");
 const seedSql = readFileSync("supabase/seed.sql", "utf8");
+const retellCatalogSource = readFileSync("scripts/sync-retell-catalog.mjs", "utf8");
 const initialSchema = readFileSync("supabase/migrations/20250524000001_initial_schema.sql", "utf8");
 const n8nWorkflowFiles = [
   "n8n/workflows/retell-call-completed.json",
@@ -33,6 +34,12 @@ test("Retell phone number creation binds the new agent with weighted inbound/out
 test("Retell webhooks verify with the Retell API key when no dedicated webhook secret is set", () => {
   assert.match(webhookShared, /Deno\.env\.get\("RETELL_WEBHOOK_SECRET"\)\s*\?\?/);
   assert.match(webhookShared, /Deno\.env\.get\("RETELL_API_KEY"\)/);
+});
+
+test("Retell catalog deployment registers the staging webhook on every managed agent", () => {
+  assert.match(retellCatalogSource, /RETELL_WEBHOOK_URL/);
+  assert.match(retellCatalogSource, /functions\/v1\/retell-webhook/);
+  assert.match(retellCatalogSource, /webhook_url:\s*webhookUrl/);
 });
 
 test("Retell template voice IDs are available in the current Retell workspace", () => {

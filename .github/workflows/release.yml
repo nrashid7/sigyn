@@ -61,11 +61,8 @@ jobs:
           done
       - run: npm run deploy:n8n
       - run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
-        working-directory: apps/web
       - run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
-        working-directory: apps/web
       - run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
-        working-directory: apps/web
       - run: npm run verify:beta-launch -- --webhooks --supabase
 
   production:
@@ -109,11 +106,8 @@ jobs:
       - run: npm run sync:retell-knowledge
       - run: npm run sync:retell-knowledge -- --apply
       - run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
-        working-directory: apps/web
       - run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
-        working-directory: apps/web
       - run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
-        working-directory: apps/web
       - name: Materialize release-matched smoke evidence
         env:
           PRODUCTION_SMOKE_EVIDENCE_JSON: ${{ secrets.PRODUCTION_SMOKE_EVIDENCE_JSON }}
