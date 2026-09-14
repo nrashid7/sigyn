@@ -3,14 +3,14 @@ export async function invokeFunction(
   name: string,
   body: Record<string, unknown>,
 ): Promise<Response | null> {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !serviceKey) {
-    console.error(`[invoke] Missing Supabase configuration, skipped ${name}`);
-    return null;
-  }
-
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceKey) {
+      console.error(`[invoke] Missing Supabase configuration, skipped ${name}`);
+      return null;
+    }
+
     const response = await fetch(`${supabaseUrl}/functions/v1/${name}`, {
       method: "POST",
       headers: {
