@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import { TOOL_HEADER, TOOL_NAMES, toolDefinitions } from "./lib/tool-definitions.mjs";
@@ -100,4 +102,80 @@ test("--dry-run exits 0, makes no network calls, and prints the tool names + sup
     assert.match(result.stdout, new RegExp(name));
   }
   assert.match(result.stdout, /supabase secrets set/);
+});
+
+test("--dry-run --env-out writes a dotenv line with the three tool ids", () => {
+  const dir = mkdtempSync(join(tmpdir(), "elevenlabs-setup-"));
+  const envOutPath = join(dir, "elevenlabs.env");
+  try {
+    const env = { ...process.env, SUPABASE_URL };
+    delete env.ELEVENLABS_API_KEY;
+    delete env.CI;
+
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/elevenlabs-setup.mjs", "--dry-run", "--env-out", envOutPath],
+      { env, encoding: "utf8" },
+    );
+
+    assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+
+    const contents = readFileSync(envOutPath, "utf8");
+    const lines = contents.split("\n").filter((line) => line.length > 0);
+    assert.equal(lines.length, 1, `expected exactly one line, got:\n${contents}`);
+    assert.match(lines[0], /^ELEVENLABS_TOOL_IDS='\{/);
+
+    const json = lines[0].slice("ELEVENLABS_TOOL_IDS=".length).replace(/^'|'$/g, "");
+    const parsed = JSON.parse(json);
+    assert.deepEqual(Object.keys(parsed).sort(), [...TOOL_NAMES].sort());
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CI=true --dry-run without the tool/webhook secrets exits 1 and names both missing vars", () => {
+  const env = { ...process.env, SUPABASE_URL, CI: "true" };
+  delete env.ELEVENLABS_API_KEY;
+  delete env.ELEVENLABS_TOOL_SECRET;
+  delete env.ELEVENLABS_WEBHOOK_SECRET;
+
+  const result = spawnSync(process.execPath, ["scripts/elevenlabs-setup.mjs", "--dry-run"], {
+    env,
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /ELEVENLABS_TOOL_SECRET/);
+  assert.match(result.stderr, /ELEVENLABS_WEBHOOK_SECRET/);
+});
+
+test("CI=true with both secrets set never prints the secret values", () => {
+  const dir = mkdtempSync(join(tmpdir(), "elevenlabs-setup-"));
+  const envOutPath = join(dir, "elevenlabs.env");
+  const dummyToolSecret = "dummy-tool-secret-value";
+  const dummyWebhookSecret = "dummy-webhook-secret-value";
+  try {
+    const env = {
+      ...process.env,
+      SUPABASE_URL,
+      CI: "true",
+      ELEVENLABS_TOOL_SECRET: dummyToolSecret,
+      ELEVENLABS_WEBHOOK_SECRET: dummyWebhookSecret,
+    };
+    delete env.ELEVENLABS_API_KEY;
+
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/elevenlabs-setup.mjs", "--dry-run", "--env-out", envOutPath],
+      { env, encoding: "utf8" },
+    );
+
+    assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    assert.doesNotMatch(result.stdout, new RegExp(dummyToolSecret));
+    assert.doesNotMatch(result.stdout, new RegExp(dummyWebhookSecret));
+    assert.doesNotMatch(result.stderr, new RegExp(dummyToolSecret));
+    assert.doesNotMatch(result.stderr, new RegExp(dummyWebhookSecret));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

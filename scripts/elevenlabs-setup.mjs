@@ -11,9 +11,17 @@
  *
  *   node scripts/elevenlabs-setup.mjs --dry-run   # print the plan, no network
  *   node scripts/elevenlabs-setup.mjs --rotate    # new secret + re-point tools
+ *   node scripts/elevenlabs-setup.mjs --env-out <path>   # also write tool ids as a dotenv line
+ *
+ * CI mode (CI=true, or --ci) is for running unattended in GitHub Actions: it
+ * requires ELEVENLABS_TOOL_SECRET and ELEVENLABS_WEBHOOK_SECRET to already be
+ * set (both come from GitHub Secrets — this script never mints or prints
+ * either), and it never creates the workspace webhook — that must already
+ * exist, made by hand in the ElevenLabs dashboard.
  */
 
 import { randomBytes } from "node:crypto";
+import { writeFileSync } from "node:fs";
 
 import {
   SECRET_NAME,
@@ -28,6 +36,13 @@ const EL_BASE = "https://api.elevenlabs.io/v1";
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
 const rotate = args.includes("--rotate");
+const ciMode = process.env.CI === "true" || args.includes("--ci");
+
+function argValue(flag) {
+  const i = args.indexOf(flag);
+  return i === -1 ? null : (args[i + 1] ?? null);
+}
+const envOutPath = argValue("--env-out");
 
 const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
 if (!supabaseUrl) {
@@ -39,6 +54,55 @@ const apiKey = process.env.ELEVENLABS_API_KEY;
 if (!apiKey && !dryRun) {
   console.error("Missing required env var: ELEVENLABS_API_KEY (or pass --dry-run)");
   process.exit(1);
+}
+
+// --- CI guard: before any network call, so it also applies to --dry-run ----
+//
+// A CI runner has nowhere safe to show a secret that ElevenLabs only ever
+// reveals once, so CI mode never mints ELEVENLABS_TOOL_SECRET or
+// ELEVENLABS_WEBHOOK_SECRET and never creates the workspace webhook — both
+// must already exist before the workflow runs.
+
+function toolSecretSetupInstructions() {
+  return (
+    "generate any 64-character hex string (e.g. `openssl rand -hex 32`) and store it as " +
+    "the GitHub Secret ELEVENLABS_TOOL_SECRET."
+  );
+}
+
+function webhookSetupInstructions() {
+  return (
+    `create the "${WEBHOOK_NAME}" webhook in the ElevenLabs dashboard (Settings → Webhooks) ` +
+    `with URL ${supabaseUrl}/functions/v1/elevenlabs-webhook and HMAC auth, then copy the ` +
+    "secret shown once and store it as the GitHub Secret ELEVENLABS_WEBHOOK_SECRET."
+  );
+}
+
+const toolSecretEnv = process.env.ELEVENLABS_TOOL_SECRET || null;
+const webhookSecretEnv = process.env.ELEVENLABS_WEBHOOK_SECRET || null;
+
+if (ciMode) {
+  const missing = [];
+  if (!toolSecretEnv) missing.push("ELEVENLABS_TOOL_SECRET");
+  if (!webhookSecretEnv) missing.push("ELEVENLABS_WEBHOOK_SECRET");
+
+  if (missing.length > 0) {
+    console.error(`CI mode requires env var(s) that are missing: ${missing.join(", ")}`);
+    if (missing.includes("ELEVENLABS_TOOL_SECRET")) {
+      console.error(`  ELEVENLABS_TOOL_SECRET: ${toolSecretSetupInstructions()}`);
+    }
+    if (missing.includes("ELEVENLABS_WEBHOOK_SECRET")) {
+      console.error(`  ELEVENLABS_WEBHOOK_SECRET: ${webhookSetupInstructions()}`);
+    }
+    process.exit(1);
+  }
+}
+
+function writeEnvOut(toolIds) {
+  if (!envOutPath) return;
+  const line = `ELEVENLABS_TOOL_IDS='${JSON.stringify(toolIds)}'\n`;
+  writeFileSync(envOutPath, line, "utf8");
+  console.log(`\nWrote ${envOutPath}`);
 }
 
 // --- HTTP + response-shape helpers -----------------------------------------
@@ -240,6 +304,10 @@ async function ensureWebhook() {
         "           Reuse the stored ELEVENLABS_WEBHOOK_SECRET, or delete the webhook in\n" +
         "           Settings → Webhooks and re-run this script to get a fresh one.",
     );
+  } else if (ciMode) {
+    console.error(`\nWebhook '${WEBHOOK_NAME}' not found — CI mode never creates it.`);
+    console.error(`  ${webhookSetupInstructions()}`);
+    process.exit(1);
   } else {
     const created = await api("POST", "/workspace/webhooks", {
       name: WEBHOOK_NAME,
@@ -325,13 +393,21 @@ function printSecretsSetLine(toolIds, secret, webhookSecret) {
   const parts = [`ELEVENLABS_TOOL_IDS='${JSON.stringify(toolIds)}'`];
 
   if (secret.knowValue && secret.value) {
-    parts.push(`ELEVENLABS_TOOL_SECRET=${secret.value}`);
+    parts.push(`ELEVENLABS_TOOL_SECRET=${ciMode ? "<set>" : secret.value}`);
   }
   if (webhookSecret) {
-    parts.push(`ELEVENLABS_WEBHOOK_SECRET=${webhookSecret}`);
+    parts.push(`ELEVENLABS_WEBHOOK_SECRET=${ciMode ? "<set>" : webhookSecret}`);
   }
 
   console.log(`  supabase secrets set ${parts.join(" ")}`);
+
+  if (ciMode) {
+    console.log(
+      "\n  Running in CI: ELEVENLABS_TOOL_SECRET and ELEVENLABS_WEBHOOK_SECRET come from GitHub\n" +
+        "  Secrets in an earlier workflow step, not from this script — values are never printed here.",
+    );
+    return;
+  }
 
   if (!secret.knowValue || !secret.value) {
     console.log(
@@ -358,6 +434,7 @@ async function main() {
 
   const secret = await ensureSecret();
   const toolIds = await ensureTools(secret.secretId);
+  writeEnvOut(toolIds);
   const { webhookId, webhookSecret } = await ensureWebhook();
   await verify(toolIds, webhookId);
   printSecretsSetLine(toolIds, secret, webhookSecret);
