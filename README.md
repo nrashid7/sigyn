@@ -6,12 +6,11 @@ AI receptionist SaaS platform for SMBs. Deploy AI phone receptionists that answe
 
 ## Tech Stack
 
-- **Frontend:** Next.js 15, TypeScript, TailwindCSS, shadcn/ui, Framer Motion
-- **Backend:** Supabase (Postgres, pgvector, Auth, Storage, Edge Functions)
-- **Voice:** Retell AI, ElevenLabs
+- **Frontend:** Next.js 16, TypeScript, TailwindCSS, shadcn/ui, Framer Motion
+- **Backend:** Supabase (Postgres, Auth, Storage, Edge Functions)
+- **Voice/AI:** ElevenLabs (ElevenAgents: voice, knowledge base, call analysis)
 - **SMS:** Twilio
-- **AI:** OpenRouter (Claude Sonnet, GPT-4.1-mini)
-- **Automation:** n8n
+- **Automation:** n8n (Railway)
 - **Billing:** Stripe
 - **Analytics:** PostHog
 

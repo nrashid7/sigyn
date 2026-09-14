@@ -3,7 +3,7 @@
 BusinessVoice AI uses a **hybrid automation model**:
 
 ```
-Retell webhook → Supabase Edge Function → n8n Call Completed Router → CRM / SMS / Sheets
+ElevenLabs webhook → Supabase Edge Function → n8n Call Completed Router → CRM / SMS / Sheets
 ```
 
 Supabase handles realtime call logic. n8n handles long-running CRM chains.
@@ -22,7 +22,7 @@ Status (as of setup):
 1. **Migrations applied** — full schema (16 tables, RLS, storage bucket)
 2. **Seed data** — 5 agent templates + 5 n8n workflow rows in `workflows`
 3. **Edge Functions deployed** — especially:
-   - `retell-webhook`
+   - `elevenlabs-webhook`
    - `n8n-dispatch`
    - `sync-n8n-workflows`
 
@@ -130,8 +130,8 @@ Check **Executions** in n8n for the Call Completed Router workflow.
 
 ### End-to-end
 
-1. Complete a test call via Retell
-2. `retell-webhook` fires → `n8n-dispatch`
+1. Complete a test call via ElevenLabs
+2. `elevenlabs-webhook` fires → `n8n-dispatch`
 3. n8n router branches to SMS/CRM based on business integrations
 
 ---
