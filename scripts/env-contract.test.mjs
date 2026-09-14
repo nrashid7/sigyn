@@ -64,6 +64,10 @@ function readText(filePath) {
 
 const DENO_ENV_RE = /Deno\.env\.get\("([A-Z0-9_]+)"\)/g;
 const PROCESS_ENV_RE = /process\.env\.([A-Z0-9_]+)/g;
+// Most edge-function secrets are never read through `Deno.env.get` directly — they go
+// through `requireEnv` in _shared/errors.ts, which is why the three ELEVENLABS_TOOL_*/
+// _WEBHOOK_SECRET names were invisible to this guard until this collector existed.
+const REQUIRE_ENV_RE = /requireEnv\("([A-Z0-9_]+)"\)/g;
 
 function collectNames(files, regex) {
   const names = new Set();
@@ -83,6 +87,7 @@ const scriptFiles = listFiles(join(ROOT, "scripts"), [".mjs"]);
 
 const collected = new Set([
   ...collectNames(denoFiles, DENO_ENV_RE),
+  ...collectNames(denoFiles, REQUIRE_ENV_RE),
   ...collectNames(webFiles, PROCESS_ENV_RE),
   ...collectNames(sharedFiles, PROCESS_ENV_RE),
   ...collectNames(scriptFiles, PROCESS_ENV_RE),
@@ -130,6 +135,36 @@ test("every variable in .env.example is documented in docs/ENVIRONMENT.md", () =
     [],
     `.env.example vars missing from docs/ENVIRONMENT.md: ${missing.join(", ")}`,
   );
+});
+
+// --- ...and the reverse: every var the code reads must be in .env.example ----
+//
+// docs/ENVIRONMENT.md is prose; `.env.example` is the file an operator actually
+// copies. A var missing from it is a var nobody sets — which is how an edge
+// function ends up failing at runtime on a secret that was only ever documented.
+//
+// Exempt (never copied from `.env.example`):
+//   SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY — injected into
+//     every edge function by the Supabase runtime.
+//   NODE_ENV / VERCEL_URL / CI — set by the runtime, Vercel, and CI respectively.
+//   AGENT_ID — an optional one-off shell arg for scripts/smoke-elevenlabs.mjs, not
+//     part of any deployment's configuration.
+//   NEXT_PUBLIC_SUPABASE_ANON_KEY — the legacy alternative to
+//     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; `.env.example` names it in a comment on
+//     that line rather than as a second assignment.
+const ENV_EXAMPLE_ALLOWLIST = new Set([
+  ...RUNTIME_ALLOWLIST,
+  "AGENT_ID",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+]);
+
+test("every env var read by the code is present in .env.example", () => {
+  const names = namesInEnvExample(readText(join(ROOT, ".env.example")));
+  const missing = [...collected]
+    .filter((name) => !ENV_EXAMPLE_ALLOWLIST.has(name))
+    .filter((name) => !names.has(name))
+    .sort();
+  assert.deepEqual(missing, [], `Env vars read by code but missing from .env.example: ${missing.join(", ")}`);
 });
 
 // --- No leftover naming from the voice provider this project replaced -------

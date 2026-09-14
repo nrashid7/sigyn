@@ -303,6 +303,18 @@ async function verify(toolIds, webhookId) {
   for (const [name, id, status] of rows) {
     console.log(`  ${name.padEnd(nameWidth)}  ${String(id).padEnd(idWidth)}  ${status}`);
   }
+
+  // A MISMATCH means the id we are about to print into ELEVENLABS_TOOL_IDS points at a
+  // tool with a different name — agents would be wired to the wrong endpoint. Fail like
+  // the /convai/settings check above rather than printing a broken secrets line.
+  const mismatched = rows.filter(([, , status]) => status === "MISMATCH").map(([name]) => name);
+  if (mismatched.length > 0) {
+    console.error(
+      `\nTool name mismatch for: ${mismatched.join(", ")}. ` +
+        "The tool id resolves to a differently-named tool — inspect these in the ElevenLabs dashboard before storing any ids.",
+    );
+    process.exit(1);
+  }
 }
 
 // --- Step 5: print the command, never run it ----------------------------------
