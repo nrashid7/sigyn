@@ -1,6 +1,7 @@
 import Stripe from "npm:stripe@17";
 import { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { AppError } from "./errors.ts";
+import { captureBusinessEvent } from "./analytics.ts";
 
 export function getStripeClient(): Stripe {
   const key = Deno.env.get("STRIPE_SECRET_KEY");
@@ -148,29 +149,48 @@ export async function handleSubscriptionDeleted(
   }
 }
 
+export interface RecordUsageMinutesResult {
+  inserted: boolean;
+  used: number;
+  included: number;
+}
+
 export async function recordUsageMinutes(
   supabase: SupabaseClient,
   businessId: string,
   callId: string,
   minutes: number,
-): Promise<void> {
-  await supabase.from("usage_records").insert({
-    business_id: businessId,
-    call_id: callId,
-    type: "call_minutes",
-    quantity: minutes,
+): Promise<RecordUsageMinutesResult> {
+  const { data, error } = await supabase.rpc("record_call_minutes", {
+    p_business_id: businessId,
+    p_call_id: callId,
+    p_minutes: minutes,
   });
 
-  const { data: sub } = await supabase
-    .from("subscriptions")
-    .select("used_minutes")
-    .eq("business_id", businessId)
-    .maybeSingle();
-
-  if (sub) {
-    await supabase
-      .from("subscriptions")
-      .update({ used_minutes: (sub.used_minutes ?? 0) + minutes })
-      .eq("business_id", businessId);
+  if (error) {
+    throw new AppError(`Failed to record usage minutes: ${error.message}`, 500);
   }
+
+  const row = Array.isArray(data) ? data[0] : data;
+
+  if (row?.inserted && row.included_minutes > 0) {
+    const used = row.used_minutes;
+    const included = row.included_minutes;
+    const before = used - minutes;
+    for (const threshold of [80, 100]) {
+      if ((before / included) * 100 < threshold && (used / included) * 100 >= threshold) {
+        await captureBusinessEvent(businessId, "usage_threshold_reached", {
+          threshold,
+          used_minutes: used,
+          included_minutes: included,
+        });
+      }
+    }
+  }
+
+  return {
+    inserted: Boolean(row?.inserted),
+    used: row?.used_minutes ?? 0,
+    included: row?.included_minutes ?? 0,
+  };
 }
