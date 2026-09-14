@@ -61,6 +61,20 @@ export async function saveCallPreferences(formData: FormData) {
 
   if (error) return { error: error.message };
 
+  // Call preferences are baked into the agent's system prompt, so an already-hired
+  // agent has to be re-pushed to ElevenLabs. Fire-and-forget: a sync failure must not
+  // block onboarding, and the next sync re-sends the whole config anyway.
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const serviceKey = getSupabaseServiceRoleKey();
+  await fetch(`${supabaseUrl}/functions/v1/agent-sync`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${serviceKey}`,
+    },
+    body: JSON.stringify({ business_id: business.id }),
+  }).catch(() => null);
+
   await supabase.from("businesses").update({ onboarding_step: 4 }).eq("id", business.id);
   await trackServerEvent("onboarding_step_completed", { step: 4, business_id: business.id });
 

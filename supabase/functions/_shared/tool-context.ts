@@ -114,6 +114,25 @@ export function parseToolBody<T>(
   return body as unknown as T;
 }
 
+/**
+ * Formats a moment in the business's own time zone, falling back to UTC.
+ *
+ * `businesses.timezone` is free text, so a bad value makes `toLocaleString` throw a
+ * RangeError. That must never fail a tool call — least of all in calendar-book, where
+ * the throw would land after the booking has already been committed.
+ */
+export function formatInBusinessTimeZone(
+  date: Date,
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions,
+): string {
+  try {
+    return date.toLocaleString("en-US", { ...options, timeZone });
+  } catch {
+    return date.toLocaleString("en-US", { ...options, timeZone: "UTC" });
+  }
+}
+
 /** Rounds, then clamps to 0-100; anything that doesn't parse as a finite number becomes 0. */
 export function clampScore(raw: unknown): number {
   const parsed = Math.round(Number(raw));

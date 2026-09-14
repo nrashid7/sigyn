@@ -108,9 +108,13 @@ export async function acquireNumber(
   options: { areaCode?: string; friendlyName: string; exclude: string[] },
 ): Promise<{ sid: string; phone_number: string; reused: boolean }> {
   const owned = await listOwnedNumbers();
+  // An agent needs both: voice for the call itself, SMS for the missed-call follow-up.
+  // Reusing a voice-only number would silently break every SMS side effect, so a number
+  // that cannot do both is left alone and a fresh (voice+SMS) one is purchased instead.
   const reusable = owned.find(
     (number) =>
-      number.capabilities?.voice && !options.exclude.includes(number.phone_number),
+      number.capabilities?.voice && number.capabilities?.sms &&
+      !options.exclude.includes(number.phone_number),
   );
   if (reusable) {
     return { sid: reusable.sid, phone_number: reusable.phone_number, reused: true };

@@ -148,7 +148,8 @@ export interface Call {
   lead_score: number | null;
   recording_url: string | null;
   provider_metadata: Record<string, unknown>;
-  started_at: string;
+  /** Nullable column: a call the provider never reported a start time for has none. */
+  started_at: string | null;
   ended_at: string | null;
   created_at: string;
 }

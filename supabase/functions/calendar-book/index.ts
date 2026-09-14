@@ -11,12 +11,21 @@ import { requireToolSecret } from "../_shared/auth.ts";
 import { normalizePhone } from "../_shared/elevenlabs.ts";
 import { captureBusinessEvent } from "../_shared/analytics.ts";
 import {
+  formatInBusinessTimeZone,
   parseToolBody,
   resolveToolContext,
   toolResponse,
   type ToolRequestBody,
 } from "../_shared/tool-context.ts";
 import { REQUIRED_PARAMS } from "./params.ts";
+
+const CONFIRMATION_TIME_FORMAT: Intl.DateTimeFormatOptions = {
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+};
 
 interface BookBody {
   caller_id?: string;
@@ -59,25 +68,11 @@ Deno.serve(async (req) => {
     // Format the confirmation time BEFORE any write (appointment insert / calls
     // update) so a bad ctx.business.timezone can only ever fall back to UTC — it
     // can never throw after the booking has already been committed.
-    const displayTimeFormat: Intl.DateTimeFormatOptions = {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    };
-    let displayTime: string;
-    try {
-      displayTime = new Date(fields.scheduled_at).toLocaleString("en-US", {
-        ...displayTimeFormat,
-        timeZone: ctx.business.timezone,
-      });
-    } catch {
-      displayTime = new Date(fields.scheduled_at).toLocaleString("en-US", {
-        ...displayTimeFormat,
-        timeZone: "UTC",
-      });
-    }
+    const displayTime = formatInBusinessTimeZone(
+      new Date(fields.scheduled_at),
+      ctx.business.timezone,
+      CONFIRMATION_TIME_FORMAT,
+    );
 
     let booking: { appointmentId: string; externalId?: string };
     try {

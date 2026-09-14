@@ -118,6 +118,21 @@ Deno.serve(async (req) => {
       throw new AppError("Invalid ElevenLabs webhook payload", 400);
     }
 
+    // Every handler keys its call row on conversation_id. Without one there is nothing
+    // to write and nothing a retry could fix, so acknowledge and drop rather than
+    // returning an error ElevenLabs would keep retrying.
+    const conversationId = payload.data.conversation_id;
+    if (typeof conversationId !== "string" || conversationId === "") {
+      console.warn(
+        `[elevenlabs-webhook] Missing conversation_id on ${payload.type} event for agent ${payload.data.agent_id}`,
+      );
+      return jsonResponse({
+        received: true,
+        skipped: true,
+        reason: "missing_conversation_id",
+      });
+    }
+
     const supabase = createServiceClient();
 
     const { data: agent } = await supabase

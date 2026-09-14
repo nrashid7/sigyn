@@ -3,6 +3,7 @@ import { createServiceClient, errorResponse, jsonResponse, parseJsonBody } from 
 import { checkAvailability } from "../_shared/calendar.ts";
 import { requireToolSecret } from "../_shared/auth.ts";
 import {
+  formatInBusinessTimeZone,
   parseToolBody,
   resolveToolContext,
   toolResponse,
@@ -15,6 +16,14 @@ interface AvailabilityBody {
   end_date?: string;
   duration_minutes?: number;
 }
+
+const SLOT_TIME_FORMAT: Intl.DateTimeFormatOptions = {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -50,14 +59,11 @@ Deno.serve(async (req) => {
     const formatted = slots.map((s) => ({
       start: s.start,
       end: s.end,
-      display: new Date(s.start).toLocaleString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        timeZone: ctx.business.timezone,
-      }),
+      display: formatInBusinessTimeZone(
+        new Date(s.start),
+        ctx.business.timezone,
+        SLOT_TIME_FORMAT,
+      ),
     }));
 
     return toolResponse(

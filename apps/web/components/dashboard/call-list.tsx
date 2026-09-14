@@ -58,7 +58,7 @@ export function CallList({ calls }: CallListProps) {
                     {call.caller_number || "Unknown Caller"}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {formatDate(call.started_at)}
+                    {formatDate(call.started_at ?? call.created_at)}
                     {call.duration_seconds > 0 && ` · ${formatDuration(call.duration_seconds)}`}
                   </p>
                 </div>
