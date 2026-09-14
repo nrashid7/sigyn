@@ -1,0 +1,198 @@
+name: Deploy backend
+
+on:
+  workflow_dispatch:
+    inputs:
+      db_push:
+        type: boolean
+        default: true
+        description: "Apply migrations (supabase db push)"
+      seed:
+        type: boolean
+        default: true
+        description: "Apply supabase/seed.sql (agent templates)"
+      vault:
+        type: boolean
+        default: true
+        description: "Create Vault secrets for the cron job"
+      secrets:
+        type: boolean
+        default: true
+        description: "Push edge-function secrets from GitHub Secrets"
+      elevenlabs_setup:
+        type: boolean
+        default: true
+        description: "Register ElevenLabs tools + webhook settings"
+      deploy_functions:
+        type: boolean
+        default: true
+        description: "Deploy all edge functions"
+      delete_legacy:
+        type: boolean
+        default: false
+        description: "Delete the four Retell-era functions and their secrets"
+      smoke:
+        type: boolean
+        default: false
+        description: "Run scripts/smoke-elevenlabs.mjs against the deployed functions"
+      agent_id:
+        type: string
+        default: ""
+        description: "Optional ElevenLabs agent id for the smoke test"
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check edge functions
+        run: |
+          set -euo pipefail
+          deno check --no-check=remote supabase/functions/*/index.ts
+
+      - name: Apply migrations
+        if: ${{ inputs.db_push }}
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          supabase db push --db-url "$SUPABASE_DB_URL"
+
+      - name: Seed agent templates
+        if: ${{ inputs.seed }}
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/seed.sql
+          psql "$SUPABASE_DB_URL" -c "select slug from agent_templates order by slug"
+
+      - name: Create Vault secrets
+        if: ${{ inputs.vault }}
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" \
+            -v ON_ERROR_STOP=1 \
+            -v url="$SUPABASE_URL" \
+            -v key="$SUPABASE_SERVICE_ROLE_KEY" \
+            -c "select vault.create_secret(:'url', 'project_url') where not exists (select 1 from vault.secrets where name = 'project_url');" \
+            -c "select vault.create_secret(:'key', 'service_role_key') where not exists (select 1 from vault.secrets where name = 'service_role_key');" \
+            -c "select name from vault.decrypted_secrets order by name;"
+
+      - name: Push edge-function secrets
+        if: ${{ inputs.secrets }}
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_TOOL_SECRET: ${{ secrets.ELEVENLABS_TOOL_SECRET }}
+          ELEVENLABS_WEBHOOK_SECRET: ${{ secrets.ELEVENLABS_WEBHOOK_SECRET }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRICE_STARTER: ${{ secrets.STRIPE_PRICE_STARTER }}
+          STRIPE_PRICE_PRO: ${{ secrets.STRIPE_PRICE_PRO }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          N8N_WEBHOOK_SECRET: ${{ secrets.N8N_WEBHOOK_SECRET }}
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          N8N_WEBHOOK_BASE_URL: ${{ vars.N8N_WEBHOOK_BASE_URL }}
+        run: |
+          set -euo pipefail
+          names=(ELEVENLABS_API_KEY ELEVENLABS_TOOL_SECRET ELEVENLABS_WEBHOOK_SECRET TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_PHONE_NUMBER STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_STARTER STRIPE_PRICE_PRO GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET N8N_WEBHOOK_SECRET POSTHOG_API_KEY N8N_WEBHOOK_BASE_URL)
+          kv=()
+          for name in "${names[@]}"; do
+            value="${!name:-}"
+            if [ -n "$value" ]; then
+              kv+=("$name=$value")
+            fi
+          done
+          if [ "${#kv[@]}" -gt 0 ]; then
+            supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" "${kv[@]}"
+          else
+            echo "No non-empty edge-function secrets to push."
+          fi
+          supabase secrets list --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Register ElevenLabs tools and webhook settings
+        if: ${{ inputs.elevenlabs_setup }}
+        env:
+          CI: "true"
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_TOOL_SECRET: ${{ secrets.ELEVENLABS_TOOL_SECRET }}
+          ELEVENLABS_WEBHOOK_SECRET: ${{ secrets.ELEVENLABS_WEBHOOK_SECRET }}
+        run: |
+          set -euo pipefail
+          node scripts/elevenlabs-setup.mjs --env-out "$RUNNER_TEMP/elevenlabs.env"
+          supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" --env-file "$RUNNER_TEMP/elevenlabs.env"
+
+      - name: Deploy edge functions
+        if: ${{ inputs.deploy_functions }}
+        run: |
+          set -euo pipefail
+          supabase functions deploy --use-api --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions list --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Gateway checks
+        if: ${{ inputs.deploy_functions }}
+        run: |
+          set -euo pipefail
+          check() {
+            local label="$1" expected="$2"
+            shift 2
+            local status
+            status=$(curl -s -o /dev/null -w '%{http_code}' "$@")
+            if [ "$status" != "$expected" ]; then
+              echo "FAIL: $label expected $expected, got $status"
+              exit 1
+            fi
+            echo "OK: $label -> $status"
+          }
+          check "stripe-webhook" 405 "$SUPABASE_URL/functions/v1/stripe-webhook"
+          check "n8n-dispatch" 401 "$SUPABASE_URL/functions/v1/n8n-dispatch"
+          check "elevenlabs-webhook" 401 -X POST "$SUPABASE_URL/functions/v1/elevenlabs-webhook" -d '{}'
+
+      - name: Delete legacy functions
+        if: ${{ inputs.delete_legacy }}
+        run: |
+          set -euo pipefail
+          for f in retell-webhook retell-create-agent knowledge-search call-analyze; do
+            supabase functions delete "$f" --project-ref "$SUPABASE_PROJECT_REF" || echo "$f already gone"
+          done
+          supabase secrets unset RETELL_API_KEY RETELL_WEBHOOK_SECRET OPENAI_API_KEY OPENROUTER_API_KEY VOYAGE_API_KEY EMBEDDING_PROVIDER APP_URL --project-ref "$SUPABASE_PROJECT_REF" || true
+
+      - name: Smoke test
+        if: ${{ inputs.smoke }}
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_WEBHOOK_SECRET: ${{ secrets.ELEVENLABS_WEBHOOK_SECRET }}
+          ELEVENLABS_TOOL_SECRET: ${{ secrets.ELEVENLABS_TOOL_SECRET }}
+          AGENT_ID: ${{ inputs.agent_id }}
+        run: |
+          set -euo pipefail
+          npm ci
+          node scripts/smoke-elevenlabs.mjs
