@@ -1,11 +1,12 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalEnv": [
-    "NEXT_PUBLIC_APP_URL",
-    "NEXT_PUBLIC_SUPABASE_URL",
-    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    "SUPABASE_SERVICE_ROLE_KEY"
+    "NEXT_PUBLIC_*",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "STRIPE_*",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "POSTHOG_API_KEY"
   ],
   "tasks": {
     "build": {
