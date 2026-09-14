@@ -19,7 +19,8 @@
     "test:node": "node --test \"scripts/**/*.test.mjs\"",
     "test:deno": "deno test --allow-env --allow-read supabase/functions/tests",
     "deploy:n8n": "node scripts/deploy-n8n-workflows.mjs",
-    "setup:elevenlabs": "node scripts/elevenlabs-setup.mjs"
+    "setup:elevenlabs": "node scripts/elevenlabs-setup.mjs",
+    "smoke": "node scripts/smoke-elevenlabs.mjs"
   },
   "devDependencies": {
     "turbo": "^2.5.4"
