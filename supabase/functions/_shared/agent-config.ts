@@ -106,13 +106,21 @@ export async function loadAgentConfigSources(
     throw new AppError("Agent template not found", 404, "NOT_FOUND");
   }
 
-  const { data: callPrefs } = await supabase
+  const { data: callPrefs, error: callPrefsError } = await supabase
     .from("call_preferences")
     .select(
       "transfer_number, emergency_number, voicemail_enabled, voicemail_message, after_hours_message",
     )
     .eq("business_id", businessId)
     .maybeSingle();
+
+  if (callPrefsError) {
+    throw new AppError(
+      `Failed to load call preferences: ${callPrefsError.message}`,
+      500,
+      "DB_ERROR",
+    );
+  }
 
   const { data: kbDocs, error: kbError } = await supabase
     .from("knowledge_documents")
@@ -193,6 +201,7 @@ export function buildConfigForAgent(
   agentRow: AgentConfigRow,
   sources: AgentConfigSources,
   includeCalendar: boolean,
+  toolIds: ToolIds = loadToolIds(),
 ): ElAgentConfig {
   const template = sources.template.config;
 
@@ -205,14 +214,15 @@ export function buildConfigForAgent(
     voiceId: agentRow.voice_id ?? template.voice?.elevenlabs_voice_id ??
       DEFAULT_VOICE_ID,
     kbDocs: sources.kbDocs,
-    toolIds: loadToolIds(),
+    toolIds,
     includeCalendar,
   });
 }
 
-/** The calendar choice made at hire time, so a re-sync rebuilds the same config. */
+/**
+ * The calendar choice made at hire time, so a re-sync rebuilds the same config. A JSON `null`
+ * (as well as a missing key) means "not set yet" and defaults to `true`, same as `undefined`.
+ */
 export function includeCalendarOf(config: Record<string, unknown>): boolean {
-  return config.include_calendar === undefined
-    ? true
-    : config.include_calendar === true;
+  return (config.include_calendar ?? true) === true;
 }

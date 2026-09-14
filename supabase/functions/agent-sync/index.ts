@@ -14,6 +14,8 @@ import {
   buildConfigForAgent,
   includeCalendarOf,
   loadAgentConfigSources,
+  loadToolIds,
+  type ToolIds,
 } from "../_shared/agent-config.ts";
 
 interface SyncRequest {
@@ -31,9 +33,13 @@ interface SyncResult {
  * Re-pushes the whole config for one agent. ElevenLabs's PATCH merge semantics are not
  * documented, so a sync always sends the complete payload rather than a delta.
  */
-async function syncAgent(supabase: SupabaseClient, row: AgentRow): Promise<void> {
+async function syncAgent(
+  supabase: SupabaseClient,
+  row: AgentRow,
+  toolIds: ToolIds,
+): Promise<void> {
   const sources = await loadAgentConfigSources(supabase, row.business_id, row.template_id);
-  const config = buildConfigForAgent(row, sources, includeCalendarOf(row.config));
+  const config = buildConfigForAgent(row, sources, includeCalendarOf(row.config), toolIds);
 
   // Non-null by the query below: only rows with an ElevenLabs agent are selected.
   await updateAgent(row.elevenlabs_agent_id!, config);
@@ -81,6 +87,11 @@ Deno.serve(async (req) => {
 
     const supabase = createServiceClient();
 
+    // Loaded once, outside the per-agent loop: a malformed secret is a deploy-config problem,
+    // not a per-agent failure, so it must fail the whole request loudly instead of quietly
+    // recording every agent as failed and returning 200 { synced: 0 }.
+    const toolIds = loadToolIds();
+
     // Only live agents can be synced: anything else has no ElevenLabs agent to push to.
     let query = supabase
       .from("agents")
@@ -101,7 +112,7 @@ Deno.serve(async (req) => {
 
     for (const row of (data ?? []) as AgentRow[]) {
       try {
-        await syncAgent(supabase, row);
+        await syncAgent(supabase, row, toolIds);
         results.push({ agent_id: row.id, ok: true });
       } catch (agentError) {
         // One broken agent must not block the rest of the business's agents.

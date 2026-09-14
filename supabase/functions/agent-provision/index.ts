@@ -17,6 +17,7 @@ import {
 } from "../_shared/elevenlabs.ts";
 import { acquireNumber } from "../_shared/twilio.ts";
 import {
+  type AgentConfigSources,
   type AgentRow,
   buildConfigForAgent,
   includeCalendarOf,
@@ -24,7 +25,12 @@ import {
   type TemplateRow,
 } from "../_shared/agent-config.ts";
 import { captureBusinessEvent } from "../_shared/analytics.ts";
-import { areaCodeFrom, isProvisioningInProgress, nextStep } from "./steps.ts";
+import {
+  areaCodeFrom,
+  isProvisioningInProgress,
+  isUniqueViolation,
+  nextStep,
+} from "./steps.ts";
 
 interface ProvisionRequest {
   business_id: string;
@@ -40,6 +46,19 @@ interface ProvisionRequest {
 
 /** `agents.provision_error` is for the UI, not for a stack trace. */
 const PROVISION_ERROR_MAX_CHARS = 500;
+
+/** Shown to the user in place of a raw Postgres message; the real text still goes to
+ *  `provision_error` so support/ops can see it. */
+const DB_ERROR_USER_MESSAGE = "We couldn't save your agent. Please try again.";
+
+/**
+ * The message an `AppError` should show the user: generic for our own database failures,
+ * unchanged for every other error code (external-API errors like `TWILIO_ERROR` or
+ * `ELEVENLABS_ERROR` are already written to be user-facing).
+ */
+function userFacingMessage(error: AppError): string {
+  return error.code === "DB_ERROR" ? DB_ERROR_USER_MESSAGE : error.message;
+}
 
 async function resolveTemplateId(
   supabase: SupabaseClient,
@@ -82,12 +101,17 @@ async function patchAgent(
   return data as AgentRow;
 }
 
+/**
+ * Inserts a fresh agent row, or returns `null` if a concurrent first hire for the same
+ * business+template won the race (`agents_business_template_key`) — the caller treats that
+ * the same as losing a claim on an existing row.
+ */
 async function insertAgentRow(
   supabase: SupabaseClient,
   body: ProvisionRequest,
   template: TemplateRow,
   includeCalendar: boolean,
-): Promise<AgentRow> {
+): Promise<AgentRow | null> {
   const { data, error } = await supabase
     .from("agents")
     .insert({
@@ -105,6 +129,9 @@ async function insertAgentRow(
     .select("*")
     .single();
 
+  if (isUniqueViolation(error)) {
+    return null;
+  }
   if (error || !data) {
     throw new AppError(
       `Failed to save agent: ${error?.message ?? "insert returned no row"}`,
@@ -113,6 +140,44 @@ async function insertAgentRow(
     );
   }
   return data as AgentRow;
+}
+
+/**
+ * Claims an existing row for provisioning, conditional on the state we last read it in: the
+ * update also matches `provision_status` (and, for a row still `provisioning`, `updated_at`)
+ * so a concurrent claim of the same row cannot both win. When nothing matches, `null` means
+ * someone else already claimed it — the caller reports that as "provisioning in progress"
+ * instead of re-running steps 2-6 and creating a second ElevenLabs agent and phone number.
+ */
+async function claimExistingRow(
+  supabase: SupabaseClient,
+  existing: AgentRow,
+  includeCalendar: boolean,
+): Promise<AgentRow | null> {
+  const patch = {
+    provision_status: "provisioning",
+    provision_error: null,
+    config: { ...existing.config, include_calendar: includeCalendar },
+  };
+
+  const base = supabase
+    .from("agents")
+    .update(patch)
+    .eq("id", existing.id)
+    .eq("provision_status", existing.provision_status);
+
+  const { data, error } = existing.provision_status === "provisioning"
+    ? await base.eq("updated_at", existing.updated_at).select("*").maybeSingle()
+    : await base.select("*").maybeSingle();
+
+  if (error) {
+    throw new AppError(
+      `Failed to update agent: ${error.message}`,
+      500,
+      "DB_ERROR",
+    );
+  }
+  return data as AgentRow | null;
 }
 
 /** Numbers already spoken for, so Twilio's idle-number reuse never steals another agent's line. */
@@ -156,7 +221,7 @@ async function failProvisioning(
 
   if (error instanceof AppError) {
     return jsonResponse(
-      { error: error.message, code: error.code, agent },
+      { error: userFacingMessage(error), code: error.code, agent },
       error.statusCode,
     );
   }
@@ -236,20 +301,40 @@ Deno.serve(async (req) => {
       );
     }
 
-    const sources = await loadAgentConfigSources(supabase, body.business_id, templateId);
-
     // The row must agree with what we push, so agent-sync rebuilds an identical config.
     const includeCalendar = body.include_calendar ??
       (existing ? includeCalendarOf(existing.config) : true);
 
-    // 1. Claim the row. A failed or abandoned hire resumes on the row it already has.
-    row = existing
-      ? await patchAgent(supabase, existing.id, {
-        provision_status: "provisioning",
-        provision_error: null,
-        config: { ...existing.config, include_calendar: includeCalendar },
-      })
-      : await insertAgentRow(supabase, body, sources.template, includeCalendar);
+    let sources: AgentConfigSources;
+
+    // 1. Claim the row. A failed or abandoned hire resumes on the row it already has. The
+    //    claim is conditional on the exact state we just read (existing branch) or protected
+    //    by the row's own unique constraint (insert branch), so two concurrent retries of the
+    //    same row — or two concurrent first hires — cannot both win: the loser is told
+    //    provisioning is in progress instead of re-running steps 2-6 a second time. Done
+    //    before `loadAgentConfigSources` so the window between our read and our claim is as
+    //    small as possible.
+    if (existing) {
+      const claimed = await claimExistingRow(supabase, existing, includeCalendar);
+      if (!claimed) {
+        return jsonResponse(
+          { error: "Provisioning in progress", code: "PROVISIONING" },
+          409,
+        );
+      }
+      row = claimed;
+      sources = await loadAgentConfigSources(supabase, body.business_id, templateId);
+    } else {
+      sources = await loadAgentConfigSources(supabase, body.business_id, templateId);
+      const inserted = await insertAgentRow(supabase, body, sources.template, includeCalendar);
+      if (!inserted) {
+        return jsonResponse(
+          { error: "Provisioning in progress", code: "PROVISIONING" },
+          409,
+        );
+      }
+      row = inserted;
+    }
 
     // 2. Create the ElevenLabs agent.
     if (nextStep(row) === "create_agent") {
@@ -307,7 +392,15 @@ Deno.serve(async (req) => {
     // 5. Point the number at the agent unless the import already does. A resumed run that
     //    skipped step 4 has no idea who the number points at, so it re-sends the assignment.
     if (assignedAgentId !== row.elevenlabs_agent_id) {
-      // Both ids are set: steps 2 to 4 have run or were skipped because they already were.
+      // Steps 2 to 4 must have run or been skipped because they already had — verify instead
+      // of trusting the two non-null assertions below to a state that turned out inconsistent.
+      if (nextStep(row) !== "assign_and_finish") {
+        throw new AppError(
+          "Provisioning state is inconsistent",
+          500,
+          "PROVISION_STATE_ERROR",
+        );
+      }
       await assignNumberToAgent(row.elevenlabs_phone_number_id!, row.elevenlabs_agent_id!);
     }
 
@@ -333,6 +426,14 @@ Deno.serve(async (req) => {
   } catch (error) {
     if (supabase && row) {
       return await failProvisioning(supabase, row, error);
+    }
+    // No row to record the failure on yet (it failed at or before the claim): still mask a
+    // raw Postgres message the same way `failProvisioning` would have.
+    if (error instanceof AppError) {
+      return jsonResponse(
+        { error: userFacingMessage(error), code: error.code },
+        error.statusCode,
+      );
     }
     return errorResponse(error);
   }

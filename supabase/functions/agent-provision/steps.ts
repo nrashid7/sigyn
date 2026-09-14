@@ -77,3 +77,18 @@ export function isProvisioningInProgress(
   // NaN-safe by construction: an unparseable timestamp already returned above.
   return now.getTime() - updatedAt < PROVISIONING_HEARTBEAT_MS;
 }
+
+/** Postgres's code for a unique-constraint violation. */
+const POSTGRES_UNIQUE_VIOLATION = "23505";
+
+/**
+ * True when a database error is the unique-constraint violation a concurrent first hire for
+ * the same business+template collides on (`agents_business_template_key`). A pure predicate
+ * over just the error's `code`, so the retry-safety logic in `index.ts` is testable without a
+ * real database.
+ */
+export function isUniqueViolation(
+  error: { code?: string | null } | null | undefined,
+): boolean {
+  return error?.code === POSTGRES_UNIQUE_VIOLATION;
+}

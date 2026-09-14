@@ -1,9 +1,10 @@
 import { assertEquals, assertThrows } from "jsr:@std/assert@1";
 import { AppError } from "../_shared/errors.ts";
-import { loadToolIds } from "../_shared/agent-config.ts";
+import { includeCalendarOf, loadToolIds } from "../_shared/agent-config.ts";
 import {
   areaCodeFrom,
   isProvisioningInProgress,
+  isUniqueViolation,
   nextStep,
   type ProvisionCheckpointRow,
   type ProvisioningHeartbeatRow,
@@ -223,4 +224,40 @@ Deno.test("loadToolIds: throws CONFIG_ERROR on invalid JSON", () => {
 
 Deno.test("loadToolIds: throws CONFIG_ERROR when the secret is unset", () => {
   assertConfigError(undefined);
+});
+
+// --- includeCalendarOf ---
+
+Deno.test("includeCalendarOf: true when the config says true", () => {
+  assertEquals(includeCalendarOf({ include_calendar: true }), true);
+});
+
+Deno.test("includeCalendarOf: false when the config says false", () => {
+  assertEquals(includeCalendarOf({ include_calendar: false }), false);
+});
+
+Deno.test("includeCalendarOf: defaults to true for a JSON null", () => {
+  assertEquals(includeCalendarOf({ include_calendar: null }), true);
+});
+
+Deno.test("includeCalendarOf: defaults to true when the key is missing", () => {
+  assertEquals(includeCalendarOf({}), true);
+});
+
+// --- isUniqueViolation ---
+
+Deno.test("isUniqueViolation: true for Postgres's unique-violation code", () => {
+  assertEquals(isUniqueViolation({ code: "23505" }), true);
+});
+
+Deno.test("isUniqueViolation: false for a different error code", () => {
+  assertEquals(isUniqueViolation({ code: "23503" }), false);
+  assertEquals(isUniqueViolation({ code: "P0001" }), false);
+});
+
+Deno.test("isUniqueViolation: false when there is no error", () => {
+  assertEquals(isUniqueViolation(null), false);
+  assertEquals(isUniqueViolation(undefined), false);
+  assertEquals(isUniqueViolation({ code: undefined }), false);
+  assertEquals(isUniqueViolation({}), false);
 });
