@@ -18,10 +18,16 @@ AI receptionist SaaS platform for SMBs. Deploy AI phone receptionists that answe
 
 ```bash
 npm install
-cp .env.example apps/web/.env.local
-# Fill in environment variables (see docs/ENVIRONMENT.md)
 npm run dev
 ```
+
+`.env.example` is a template for two different files — do not copy it whole into either:
+
+- the **"Vercel (apps/web)"** section goes in `apps/web/.env.local`
+- the **"Supabase edge-function secrets"** section goes in `supabase/.env.local`, which `npm run secrets:set` uploads
+- the **"Local scripts only"** section is exported in your shell when you run `scripts/*.mjs`
+
+Fill in the values as described in [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).
 
 ## Project Structure
 

@@ -8,6 +8,7 @@ Everything below runs from a terminal in Cursor opened at the repo root (`~/Desk
 brew install supabase/tap/supabase deno stripe/stripe-cli/stripe
 supabase login
 supabase link --project-ref wtrqpnzacuaroxluxwfa
+supabase functions list
 npm install
 npm test
 ```
@@ -56,7 +57,7 @@ Observe: `select slug, config->'elevenlabs'->>'llm' from agent_templates;` → 5
 
 ## 4. Edge-function secrets
 
-Create `supabase/.env.local` (gitignored) from the "Supabase edge-function secrets" section of `.env.example`. Fill everything except the three `ELEVENLABS_TOOL_*`/`ELEVENLABS_WEBHOOK_SECRET` values (step 5 produces them). Then:
+Create `supabase/.env.local` (gitignored) from the "Supabase edge-function secrets" section of `.env.example`. Fill everything except the three `ELEVENLABS_TOOL_*`/`ELEVENLABS_WEBHOOK_SECRET` values (step 5 produces them). Step 5 fills those three in this same file — from then on they must never be left empty, because `npm run secrets:set` uploads the whole file and an empty value overwrites a good secret with an empty one. Then:
 
 ```bash
 npm run secrets:set
@@ -71,7 +72,25 @@ export SUPABASE_URL=https://wtrqpnzacuaroxluxwfa.supabase.co
 npm run setup:elevenlabs
 ```
 
-Observe: a summary table with three tools and the webhook, followed by a `supabase secrets set ELEVENLABS_TOOL_IDS='…' ELEVENLABS_TOOL_SECRET=… ELEVENLABS_WEBHOOK_SECRET=…` line. Run that line. In the ElevenLabs dashboard confirm the three tools exist and the `sigyn-post-call` webhook has retries enabled with the `transcript` and `call_initiation_failure` events.
+Observe: a summary table with three tools and the webhook, followed by a `supabase secrets set ELEVENLABS_TOOL_IDS='…' ELEVENLABS_TOOL_SECRET=… ELEVENLABS_WEBHOOK_SECRET=…` line.
+
+**Do not run that printed line.** Paste its three values into `supabase/.env.local` instead — quote the JSON:
+
+```bash
+ELEVENLABS_TOOL_IDS='{"check_availability":"…","book_appointment":"…","qualify_lead":"…"}'
+ELEVENLABS_TOOL_SECRET=…
+ELEVENLABS_WEBHOOK_SECRET=…
+```
+
+then upload them from that file:
+
+```bash
+npm run secrets:set
+```
+
+`supabase/.env.local` is the single source of truth for edge-function secrets: `npm run secrets:set` uploads every name in it, so anything only ever set by the one-off printed command is wiped the next time the file is uploaded (step 10). Keeping the values in the file makes every later `npm run secrets:set` idempotent.
+
+In the ElevenLabs dashboard confirm the three tools exist and the `sigyn-post-call` webhook has retries enabled with the `transcript` and `call_initiation_failure` events.
 
 If the script exits 1 with a raw JSON dump, the ElevenLabs API returned a shape the script did not expect — read the JSON, fix the script, re-run (it is idempotent).
 
@@ -105,6 +124,7 @@ curl -i -X POST https://wtrqpnzacuaroxluxwfa.supabase.co/functions/v1/elevenlabs
 ## 7. Smoke test the deployed functions
 
 ```bash
+export SUPABASE_URL=https://wtrqpnzacuaroxluxwfa.supabase.co
 export SUPABASE_SERVICE_ROLE_KEY=<legacy service_role JWT>
 export ELEVENLABS_WEBHOOK_SECRET=<from step 5>
 export ELEVENLABS_TOOL_SECRET=<from step 5>
@@ -112,6 +132,12 @@ npm run smoke
 ```
 
 Observe: PASS for the signed webhook (skipped-agent path), the tampered-signature 401, the tool 401/404 matrix, and `calls-reconcile` 200. Re-run later with `AGENT_ID=<agents.elevenlabs_agent_id>` after the first hire to exercise the full write path.
+
+With `AGENT_ID` set the smoke test stops skipping the write paths and leaves **real rows** in the database: a `calls` row for the fixture conversation (`conv_test`, or `conv_missed_test` with `--fixture missed-call`) plus its transcript, and a qualified-lead `calls` stub for `conv_smoke_test`. Clean them up afterwards (transcripts cascade):
+
+```sql
+delete from calls where elevenlabs_conversation_id in ('conv_test','conv_smoke_test','conv_missed_test');
+```
 
 ## 8. Vercel
 
@@ -141,7 +167,7 @@ Products: Starter $99/mo, Pro $249/mo, Setup Fee $199 one-time → price ids int
 | Symptom | Check |
 |---|---|
 | Hire returns "Phone number setup failed" | Twilio trial limits or wrong `TWILIO_*` secrets; fix and click Hire again |
-| Hire returns `TEMPLATE_ERROR` | a `{{placeholder}}` in the template/prefs that `mergeTemplateVariables` does not know — only `business_name/website/phone/timezone/hours/industry` are supported |
+| Hire returns `TEMPLATE_ERROR` | a `{{placeholder}}` in the template/prefs that `mergeTemplateVariables` does not know — the only supported ones are `{{business_name}}`, `{{business_website}}`, `{{business_phone}}`, `{{business_timezone}}`, `{{business_hours}}`, `{{business_industry}}` |
 | ElevenLabs rejects the agent payload (`ELEVENLABS_ERROR` in `provision_error`) | create one agent in the ElevenLabs dashboard with one data-collection item, `GET /v1/convai/agents/{id}`, compare the `platform_settings`/`built_in_tools` shape with `_shared/elevenlabs.ts` `buildAgentConfig` |
 | Calls never appear | webhook secret mismatch (`elevenlabs-webhook` logs 401) → re-run step 5 output; or run `curl -X POST …/calls-reconcile -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" -d '{"since_hours":1}'` |
 | Tools fail mid-call | `ELEVENLABS_TOOL_SECRET` differs between the workspace secret and Supabase; re-run step 5 with the same value |

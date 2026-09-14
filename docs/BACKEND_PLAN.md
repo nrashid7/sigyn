@@ -594,7 +594,7 @@ verify_jwt = true
 ## Verification — end-to-end runbook (becomes `docs/SMOKE_TEST.md`)
 Cost: Twilio number ~$1.15/mo + upgrade top-up; ElevenLabs Creator $22/mo (LLM + Twilio minutes extra); Stripe test mode free; Vercel Hobby free; Supabase/Railway already running.
 
-1. **Schema** — `npm run db:push`; `supabase migration list --linked` local = remote; `psql … -f supabase/seed.sql` → 6 templates.
+1. **Schema** — `npm run db:push`; `supabase migration list --linked` local = remote; `psql … -f supabase/seed.sql` → 5 templates (`sdr` is a P7 item and is not seeded).
 2. **Secrets** — fill `supabase/.env.local` → `npm run secrets:set`; `supabase secrets list` shows every name in 4.10.
 3. **Functions** — `npm run deploy:functions`; `supabase functions list` = 13; `curl -i …/stripe-webhook` 405; `curl -i …/n8n-dispatch` 401; with anon bearer 403; `curl -X POST …/elevenlabs-webhook -d '{}'` → 401 invalid signature.
 4. **ElevenLabs** — `node scripts/elevenlabs-setup.mjs` → tools + webhook present, retries on.
