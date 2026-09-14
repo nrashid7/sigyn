@@ -150,6 +150,8 @@ test("no file under supabase/functions, apps/web, packages/shared, scripts, docs
       const rel = relative(ROOT, file);
       if (rel.split(sep).slice(0, 2).join(sep) === join("supabase", "migrations")) continue;
       if (rel === join("docs", "BACKEND_PLAN.md")) continue;
+      // Deployment guide names the legacy functions operators must delete remotely.
+      if (rel === join("docs", "DEPLOY_FROM_CURSOR.md")) continue;
 
       if (readText(file).toLowerCase().includes(REMOVED_VOICE_PROVIDER)) {
         offenders.push(rel);
