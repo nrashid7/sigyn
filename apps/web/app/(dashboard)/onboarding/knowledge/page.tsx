@@ -55,7 +55,7 @@ export default function OnboardingKnowledgePage() {
           type="file"
           className="hidden"
           multiple
-          accept=".pdf,.docx,.txt,.csv,.doc"
+          accept=".pdf,.docx,.txt,.md,.html,.epub,.csv"
           onChange={(e) => handleFiles(e.target.files)}
         />
 

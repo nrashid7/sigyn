@@ -68,7 +68,7 @@ export default function KnowledgePage() {
             <input
               type="file"
               className="hidden"
-              accept=".pdf,.doc,.docx,.txt,.md"
+              accept=".pdf,.docx,.txt,.md,.html,.epub,.csv"
               onChange={handleUpload}
               disabled={uploading}
             />

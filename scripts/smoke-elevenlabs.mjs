@@ -229,9 +229,11 @@ async function checkProvision() {
         include_calendar: true,
       }),
     });
-    assertStatus(res, 200, "POST agent-provision");
+    if (res.status !== 200 && res.status !== 201) {
+      throw new Error(`POST agent-provision: expected 200 or 201, got ${res.status}`);
+    }
     const json = await res.json();
-    console.log(`        ${JSON.stringify(json)}`);
+    console.log(`        HTTP ${res.status}  ${JSON.stringify(json)}`);
   });
 }
 
