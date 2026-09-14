@@ -35,7 +35,7 @@ Observe: both names listed. (The service-role value must be the legacy JWT — t
 npm run db:push
 ```
 
-Observe: migrations `20260913000001`, `…000002`, `…000003`, `…000010`, `…000011` applied. If `CREATE EXTENSION pg_cron` fails: Dashboard → Integrations → Cron → Enable, then run `npm run db:push` again.
+Observe: migrations `20260913000001`, `…000002`, `…000003`, `…000004`, `…000010`, `…000011` applied. If `CREATE EXTENSION pg_cron` fails: Dashboard → Integrations → Cron → Enable, then run `npm run db:push` again.
 
 Verify in the SQL editor:
 

@@ -60,13 +60,14 @@ export async function uploadKnowledgeDocument(formData: FormData) {
 
   if (uploadError) return { error: uploadError.message };
 
+  // Only the columns the `authenticated` role is granted INSERT on
+  // (20260913000004_agent_column_grants.sql). `chunk_count` defaults to 0 in the schema.
   const { data: doc, error } = await supabase.from("knowledge_documents").insert({
     business_id: business.id,
     filename: file.name,
     file_type: file.type,
     storage_path: path,
     status: "pending",
-    chunk_count: 0,
   }).select().single();
 
   if (error) return { error: error.message };
