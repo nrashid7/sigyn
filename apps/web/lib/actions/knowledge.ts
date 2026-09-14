@@ -19,6 +19,13 @@ function isSupportedKnowledgeFile(filename: string): boolean {
   return SUPPORTED_KNOWLEDGE_EXTENSIONS.includes(knowledgeFileExtension(filename));
 }
 
+// Mirrors supabase/functions/_shared/knowledge.ts's unsupportedFileTypeMessage.
+function unsupportedKnowledgeFileMessage(filename: string): string {
+  const ext = knowledgeFileExtension(filename);
+  const extLabel = ext ? `.${ext}` : "(no extension)";
+  return `Unsupported file type: ${extLabel}. Upload PDF, DOCX, TXT, MD, HTML, EPUB or CSV.`;
+}
+
 export async function getKnowledgeDocuments() {
   const business = await getBusiness();
   if (!business) return [];
@@ -41,11 +48,7 @@ export async function uploadKnowledgeDocument(formData: FormData) {
   if (!file) return { error: "No file provided" };
 
   if (!isSupportedKnowledgeFile(file.name)) {
-    return {
-      error: `Unsupported file type: .${
-        knowledgeFileExtension(file.name)
-      }. Upload PDF, DOCX, TXT, MD, HTML, EPUB or CSV.`,
-    };
+    return { error: unsupportedKnowledgeFileMessage(file.name) };
   }
 
   const supabase = await createClient();

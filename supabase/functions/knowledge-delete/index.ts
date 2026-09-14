@@ -9,6 +9,7 @@ import {
 import { requireServiceRole } from "../_shared/auth.ts";
 import { deleteKbDocument } from "../_shared/elevenlabs.ts";
 import { invokeFunction } from "../_shared/invoke.ts";
+import { isNotFoundError } from "../_shared/knowledge.ts";
 
 interface DeleteRequest {
   document_id: string;
@@ -52,6 +53,10 @@ Deno.serve(async (req) => {
       .select("id, business_id, storage_path, elevenlabs_document_id")
       .eq("id", documentId)
       .single();
+
+    if (docError && !isNotFoundError(docError)) {
+      throw new AppError(`Failed to load document: ${docError.message}`, 500, "DB_ERROR");
+    }
 
     // No row left to delete is the state we wanted.
     if (docError || !data) {

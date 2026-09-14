@@ -1,10 +1,12 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import {
   fileExtension,
+  isNotFoundError,
   isSupportedKnowledgeFile,
   kbDocumentName,
   SUPPORTED_EXTENSIONS,
   toKbUpload,
+  unsupportedFileTypeMessage,
 } from "../_shared/knowledge.ts";
 
 // --- fileExtension ---
@@ -88,4 +90,34 @@ Deno.test("kbDocumentName: joins business id, document id and filename", () => {
     kbDocumentName("biz_1", "doc_1", "menu.pdf"),
     "biz_1/doc_1/menu.pdf",
   );
+});
+
+// --- unsupportedFileTypeMessage ---
+
+Deno.test("unsupportedFileTypeMessage: includes the extension when present", () => {
+  assertEquals(
+    unsupportedFileTypeMessage("photo.doc"),
+    "Unsupported file type: .doc. Upload PDF, DOCX, TXT, MD, HTML, EPUB or CSV.",
+  );
+});
+
+Deno.test("unsupportedFileTypeMessage: says '(no extension)' when there is none", () => {
+  assertEquals(
+    unsupportedFileTypeMessage("README"),
+    "Unsupported file type: (no extension). Upload PDF, DOCX, TXT, MD, HTML, EPUB or CSV.",
+  );
+});
+
+// --- isNotFoundError ---
+
+Deno.test("isNotFoundError: true for PostgREST's no-rows-found code", () => {
+  assertEquals(isNotFoundError({ code: "PGRST116" }), true);
+});
+
+Deno.test("isNotFoundError: false for an unrelated Postgres error code", () => {
+  assertEquals(isNotFoundError({ code: "42P01" }), false);
+});
+
+Deno.test("isNotFoundError: false when there is no error at all", () => {
+  assertEquals(isNotFoundError(null), false);
 });

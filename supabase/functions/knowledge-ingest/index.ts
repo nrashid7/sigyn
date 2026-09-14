@@ -7,9 +7,15 @@ import {
   parseJsonBody,
 } from "../_shared/errors.ts";
 import { requireServiceRole } from "../_shared/auth.ts";
+import { captureBusinessEvent } from "../_shared/analytics.ts";
 import { createKbDocumentFromFile } from "../_shared/elevenlabs.ts";
 import { invokeFunction } from "../_shared/invoke.ts";
-import { fileExtension, isSupportedKnowledgeFile, kbDocumentName, toKbUpload } from "../_shared/knowledge.ts";
+import {
+  isSupportedKnowledgeFile,
+  kbDocumentName,
+  toKbUpload,
+  unsupportedFileTypeMessage,
+} from "../_shared/knowledge.ts";
 
 interface IngestRequest {
   document_id: string;
@@ -87,13 +93,11 @@ Deno.serve(async (req) => {
     try {
       await supabase
         .from("knowledge_documents")
-        .update({ status: "processing" })
+        .update({ status: "processing", error_message: null })
         .eq("id", documentId);
 
       if (!isSupportedKnowledgeFile(doc.filename)) {
-        const error = `Unsupported file type: .${
-          fileExtension(doc.filename)
-        }. Upload PDF, DOCX, TXT, MD, HTML, EPUB or CSV.`;
+        const error = unsupportedFileTypeMessage(doc.filename);
 
         await supabase
           .from("knowledge_documents")
@@ -132,6 +136,20 @@ Deno.serve(async (req) => {
           error_message: null,
         })
         .eq("id", documentId);
+
+      try {
+        await captureBusinessEvent(doc.business_id, "knowledge_ingested", {
+          document_id: documentId,
+          filename: doc.filename,
+          file_type: doc.file_type,
+          elevenlabs_document_id: kbDocument.id,
+        });
+      } catch (analyticsError) {
+        console.error(
+          "[knowledge-ingest] Failed to capture knowledge_ingested event:",
+          analyticsError,
+        );
+      }
 
       await invokeFunction("agent-sync", { business_id: doc.business_id });
 

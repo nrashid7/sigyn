@@ -23,6 +23,18 @@ export function isSupportedKnowledgeFile(filename: string): boolean {
   return (SUPPORTED_EXTENSIONS as readonly string[]).includes(fileExtension(filename));
 }
 
+/** Rejection message for a file whose extension isn't in `SUPPORTED_EXTENSIONS`. */
+export function unsupportedFileTypeMessage(filename: string): string {
+  const ext = fileExtension(filename);
+  const extLabel = ext ? `.${ext}` : "(no extension)";
+  return `Unsupported file type: ${extLabel}. Upload PDF, DOCX, TXT, MD, HTML, EPUB or CSV.`;
+}
+
+/** True when a Supabase/PostgREST error means "no matching row" rather than a real failure. */
+export function isNotFoundError(error: { code?: string } | null | undefined): boolean {
+  return error?.code === "PGRST116";
+}
+
 /**
  * Builds the multipart upload for the ElevenLabs knowledge base.
  * CSV has no dedicated type on ElevenLabs, so it is re-labelled as plain text.
