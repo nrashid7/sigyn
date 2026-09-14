@@ -1,5 +1,7 @@
 # Deploying the backend from GitHub Actions
 
+**⚠️ Read before running any stage against `wtrqpnzacuaroxluxwfa`.** On 2026-09-14 the live project was found to be under a *separate, concurrent* ElevenLabs migration by another developer (schema uses `runtime_provider`, `provider_agent_id`, `agent_deployments`, `voice_*` tables; 19 recorded migrations vs the 10 in this repo). Running `db_push`, `seed` or `deploy_functions` against it would collide with that work. **Do not run those stages against the live project until the schema is reconciled with nrashid7.** For any test deployment, create a fresh Supabase project and point `SUPABASE_PROJECT_REF`, `SUPABASE_URL` and `SUPABASE_DB_URL` at it.
+
 The **Deploy backend** workflow (`.github/workflows/deploy-backend.yml`) runs
 the same stages as `docs/DEPLOY_FROM_CURSOR.md`, but on a GitHub Actions
 runner instead of a developer's laptop. No API key or secret is ever stored
@@ -92,8 +94,8 @@ Actions → **Deploy backend** → Run workflow.
 
 | Stage | Observe |
 |---|---|
-| Apply migrations | six migrations applied: `20260913000001`, `…000002`, `…000003`, `…000004`, `…000010`, `…000011` |
-| Seed agent templates | 5 rows printed |
+| Apply migrations | seven migrations applied: `20260913000001`, `…000002`, `…000003`, `…000004`, `…000010`, `…000011`, `…000020` |
+| Seed agent templates | 6 rows printed |
 | Create Vault secrets | `project_url` and `service_role_key` listed (names only) |
 | Push edge-function secrets | the names you configured, listed by `supabase secrets list` — values are never printed |
 | Register ElevenLabs tools and webhook settings | a summary table with 3 tools + the webhook, and `$RUNNER_TEMP/elevenlabs.env` written and pushed |

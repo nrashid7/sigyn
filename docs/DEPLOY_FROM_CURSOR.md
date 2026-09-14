@@ -2,6 +2,8 @@
 
 Prefer `docs/DEPLOY_WITH_GITHUB_ACTIONS.md` unless you can run the CLI on a machine you trust with secrets; this file is the local-CLI alternative.
 
+**⚠️ Do not run `supabase link --project-ref wtrqpnzacuaroxluxwfa` or any `db_push` / `seed` / `deploy_functions` stage against the live project — it is under a concurrent ElevenLabs migration by another developer and collisions would halt both efforts.** For testing, create a fresh Supabase project and point all steps at it instead.
+
 Everything below runs from a terminal in Cursor opened at the repo root (`~/Desktop/sigyn`, branch `feat/elevenlabs-backend`). Use personal accounts only. No Docker, no AWS. Each step lists the command and what you should observe before moving on.
 
 ## 0. One-time tooling and logins
@@ -37,7 +39,7 @@ Observe: both names listed. (The service-role value must be the legacy JWT — t
 npm run db:push
 ```
 
-Observe: migrations `20260913000001`, `…000002`, `…000003`, `…000004`, `…000010`, `…000011` applied. If `CREATE EXTENSION pg_cron` fails: Dashboard → Integrations → Cron → Enable, then run `npm run db:push` again.
+Observe: migrations `20260913000001`, `…000002`, `…000003`, `…000004`, `…000010`, `…000011`, `…000020` applied. If `CREATE EXTENSION pg_cron` fails: Dashboard → Integrations → Cron → Enable, then run `npm run db:push` again.
 
 Verify in the SQL editor:
 
@@ -55,7 +57,7 @@ psql "$SUPABASE_DB_URL" -f supabase/seed.sql
 
 (`SUPABASE_DB_URL` = Dashboard → Settings → Database → connection string. Alternatively paste the file into the SQL editor.)
 
-Observe: `select slug, config->'elevenlabs'->>'llm' from agent_templates;` → 5 rows, all `gpt-4o-mini`.
+Observe: `select slug, config->'elevenlabs'->>'llm' from agent_templates;` → 6 rows, all `gpt-4o-mini`.
 
 ## 4. Edge-function secrets
 

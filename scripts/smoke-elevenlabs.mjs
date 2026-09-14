@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /**
- * Smoke-test the deployed ElevenLabs-facing Supabase functions from a Mac.
- * Hits real, already-deployed functions — never run this in CI, and never
- * run it without knowing exactly which project SUPABASE_URL points at.
+ * Smoke-test the deployed ElevenLabs-facing Supabase functions.
+ * Hits real, already-deployed functions — safe to run from the Deploy backend
+ * workflow's opt-in `smoke` stage (receives the same SUPABASE_URL the deploy
+ * targeted), but must never be pointed at a project you did not just deploy to.
+ * With AGENT_ID set, writes test rows; see cleanup SQL in the runbook.
  *
  * Usage:
  *   SUPABASE_URL=https://xxx.supabase.co \
