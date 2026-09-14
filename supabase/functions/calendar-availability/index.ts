@@ -1,23 +1,21 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import {
-  AppError,
-  createServiceClient,
-  errorResponse,
-  jsonResponse,
-  parseJsonBody,
-} from "../_shared/errors.ts";
+import { createServiceClient, errorResponse, jsonResponse, parseJsonBody } from "../_shared/errors.ts";
 import { checkAvailability } from "../_shared/calendar.ts";
+import { requireToolSecret } from "../_shared/auth.ts";
+import {
+  parseToolBody,
+  resolveToolContext,
+  toolResponse,
+  type ToolRequestBody,
+} from "../_shared/tool-context.ts";
+import { ALL_PARAMS, REQUIRED_PARAMS } from "./params.ts";
 
-interface AvailabilityRequest {
-  business_id: string;
+export { ALL_PARAMS, REQUIRED_PARAMS };
+
+interface AvailabilityBody {
   start_date: string;
   end_date?: string;
   duration_minutes?: number;
-}
-
-interface RetellToolRequest {
-  name?: string;
-  args?: AvailabilityRequest;
 }
 
 Deno.serve(async (req) => {
@@ -26,7 +24,7 @@ Deno.serve(async (req) => {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, content-type",
+        "Access-Control-Allow-Headers": "content-type, x-sigyn-tool-secret",
       },
     });
   }
@@ -36,34 +34,19 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const raw = await parseJsonBody<AvailabilityRequest | RetellToolRequest>(req);
+    requireToolSecret(req);
 
-    const businessId = "business_id" in raw && raw.business_id
-      ? raw.business_id
-      : (raw as RetellToolRequest).args?.business_id;
-
-    const startDate = "start_date" in raw && raw.start_date
-      ? raw.start_date
-      : (raw as RetellToolRequest).args?.start_date;
-
-    const endDate = "end_date" in raw
-      ? raw.end_date
-      : (raw as RetellToolRequest).args?.end_date;
-
-    const durationMinutes = "duration_minutes" in raw
-      ? raw.duration_minutes
-      : (raw as RetellToolRequest).args?.duration_minutes;
-
-    if (!businessId || !startDate) {
-      throw new AppError("business_id and start_date are required", 400);
-    }
-
+    const body = await parseJsonBody<Record<string, unknown>>(req);
     const supabase = createServiceClient();
+    const ctx = await resolveToolContext(supabase, body as ToolRequestBody);
+
+    const fields = parseToolBody<AvailabilityBody>(body, REQUIRED_PARAMS);
+
     const slots = await checkAvailability(supabase, {
-      businessId,
-      startDate,
-      endDate,
-      durationMinutes,
+      businessId: ctx.business.id,
+      startDate: fields.start_date,
+      endDate: fields.end_date ?? fields.start_date,
+      durationMinutes: fields.duration_minutes ?? 30,
     });
 
     const formatted = slots.map((s) => ({
@@ -75,15 +58,16 @@ Deno.serve(async (req) => {
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
+        timeZone: ctx.business.timezone,
       }),
     }));
 
-    return jsonResponse({
-      slots: formatted,
-      result: formatted.length > 0
+    return toolResponse(
+      formatted.length > 0
         ? `Available slots: ${formatted.map((s) => s.display).join(", ")}`
-        : "No available slots found for the requested dates.",
-    });
+        : "No available slots in that range. Offer a different day.",
+      { slots: formatted },
+    );
   } catch (error) {
     return errorResponse(error);
   }
