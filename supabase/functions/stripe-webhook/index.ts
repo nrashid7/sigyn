@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import Stripe from "npm:stripe@17";
+import Stripe from "npm:stripe@18.5.0";
 import {
   createServiceClient,
   errorResponse,
@@ -7,6 +7,7 @@ import {
 } from "../_shared/errors.ts";
 import {
   handleSubscriptionDeleted,
+  resetUsageForInvoice,
   syncSubscriptionFromStripe,
   verifyStripeWebhook,
 } from "../_shared/stripe.ts";
@@ -60,11 +61,9 @@ Deno.serve(async (req) => {
         break;
       }
 
-      case "invoice.payment_succeeded": {
+      case "invoice.paid": {
         const invoice = event.data.object as Stripe.Invoice;
-        if (invoice.subscription && typeof invoice.subscription === "string") {
-          console.log("[stripe-webhook] Payment succeeded for subscription:", invoice.subscription);
-        }
+        await resetUsageForInvoice(supabase, invoice);
         break;
       }
 
@@ -85,6 +84,7 @@ Deno.serve(async (req) => {
 
       default:
         console.log(`[stripe-webhook] Unhandled event: ${event.type}`);
+        return jsonResponse({ received: true, ignored: true });
     }
 
     return jsonResponse({ received: true, type: event.type });
