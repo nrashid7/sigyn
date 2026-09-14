@@ -11,6 +11,23 @@ ALTER TABLE agents
 ALTER TABLE agents ALTER COLUMN voice_provider SET DEFAULT 'elevenlabs';
 UPDATE agents SET voice_provider = 'elevenlabs' WHERE voice_provider <> 'elevenlabs';
 ALTER TABLE agents ADD CONSTRAINT agents_voice_provider_check CHECK (voice_provider = 'elevenlabs');
+
+-- Every agent that exists at migration time was provisioned on Retell. Its provider id, phone number
+-- and LLM are unusable on ElevenLabs, so mark it failed and clear the ids: running Hire again
+-- re-provisions it through agent-provision (which resumes from the first incomplete step).
+UPDATE agents
+SET elevenlabs_agent_id = NULL,
+    phone_number = NULL,
+    is_active = FALSE,
+    provision_status = 'failed',
+    provision_error = 'Migrated from Retell; run Hire again to provision on ElevenLabs';
+
+-- One agent per (business, template): keep the newest legacy row so the unique index below can be created.
+DELETE FROM agents a USING agents a2
+WHERE a.business_id = a2.business_id
+  AND a.template_id = a2.template_id
+  AND (a.hired_at, a.id) < (a2.hired_at, a2.id);
+
 DROP INDEX IF EXISTS idx_agents_retell;
 CREATE UNIQUE INDEX agents_elevenlabs_agent_id_key
   ON agents(elevenlabs_agent_id) WHERE elevenlabs_agent_id IS NOT NULL;
