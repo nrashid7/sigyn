@@ -20,16 +20,15 @@ export async function getSubscription() {
 export async function getUsageStats() {
   const subscription = await getSubscription();
   if (!subscription) {
-    return { used: 0, included: 500, percent: 0 };
+    return { used: 0, included: 200, percent: 0 };
   }
 
-  const percent = Math.round(
-    (subscription.used_minutes / subscription.included_minutes) * 100
-  );
+  const { used_minutes: used, included_minutes: included } = subscription;
+  const percent = included > 0 ? Math.round((used / included) * 100) : 0;
 
   return {
-    used: subscription.used_minutes,
-    included: subscription.included_minutes,
+    used,
+    included,
     percent: Math.min(percent, 100),
   };
 }

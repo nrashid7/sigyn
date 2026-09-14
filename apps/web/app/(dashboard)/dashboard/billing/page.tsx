@@ -5,7 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { getSubscription, getUsageStats } from "@/lib/actions/billing";
 
-export default async function BillingPage() {
+interface BillingPageProps {
+  searchParams: Promise<{ error?: string }>;
+}
+
+export default async function BillingPage({ searchParams }: BillingPageProps) {
+  const { error } = await searchParams;
   const [subscription, usage] = await Promise.all([
     getSubscription(),
     getUsageStats(),
@@ -13,6 +18,10 @@ export default async function BillingPage() {
 
   const plan = subscription?.plan || "starter";
   const status = subscription?.status || "trialing";
+  const isActivePro = status === "active" && plan === "pro";
+  const isActiveStarter = status === "active" && plan === "starter";
+  const showSubscribeStarter = !isActiveStarter && !isActivePro;
+  const showUpgradeToPro = !isActivePro;
 
   return (
     <div className="space-y-6">
@@ -22,6 +31,12 @@ export default async function BillingPage() {
           Manage your subscription and view usage.
         </p>
       </div>
+
+      {error === "no_subscription" && (
+        <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-red-400">
+          No active subscription yet.
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -51,16 +66,25 @@ export default async function BillingPage() {
                 Knowledge base access
               </li>
             </ul>
-            <div className="flex gap-3 pt-2">
-              <form action="/api/stripe/portal" method="POST">
-                <Button variant="outline" type="submit">
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  Manage Subscription
+            <div className="flex flex-wrap gap-3 pt-2">
+              {showSubscribeStarter && (
+                <Button variant="gradient" asChild>
+                  <Link href="/api/stripe/checkout?plan=starter">Subscribe to Starter</Link>
                 </Button>
-              </form>
-              <Button variant="gradient" asChild>
-                <Link href="/api/stripe/checkout">Upgrade Plan</Link>
-              </Button>
+              )}
+              {showUpgradeToPro && (
+                <Button variant="gradient" asChild>
+                  <Link href="/api/stripe/checkout?plan=pro">Upgrade to Pro</Link>
+                </Button>
+              )}
+              {subscription?.stripe_customer_id && (
+                <form action="/api/stripe/portal" method="POST">
+                  <Button variant="outline" type="submit">
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Manage billing
+                  </Button>
+                </form>
+              )}
             </div>
           </CardContent>
         </Card>

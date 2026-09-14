@@ -88,12 +88,13 @@ Root directory: `apps/web`
    - **Starter** — $99/mo recurring, 200 min included
    - **Pro** — $249/mo recurring, 600 min included
    - **Setup Fee** — $199 one-time
-2. Copy price IDs to env vars
+2. Copy price IDs to env vars: `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_SETUP` (one-time price)
 3. Create webhook endpoint:
    ```
    https://YOUR_PROJECT.supabase.co/functions/v1/stripe-webhook
    ```
-4. Enable events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`
+   Pin the endpoint's API version to `2025-08-27.basil`.
+4. Enable events: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`
 
 ## 5. n8n Setup
 
