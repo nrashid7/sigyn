@@ -8,8 +8,10 @@
 
 **Scope this session:** P1 (foundation: config.toml, migrations 0001–0003, `_shared/auth.ts`, npm scripts, env docs, Windows cleanup, lockfile), P2 (ElevenLabs voice swap: migrations 0010–0011, seed, shared modules, 9 functions, setup + smoke scripts, Deno tests, frontend/shared edits, Retell cleanup), P3 (Stripe: `_shared/stripe.ts`, `stripe-webhook`, web billing routes/pages). **Deferred:** P4 calendar hardening (existing `_shared/calendar.ts` keeps working for the tools), P5 n8n, P6 CI (tests still written; `ci.yml` later), P7 lead engine.
 
-**User actions (Terminal panel), in order:**
-1. Now: `gh auth login` (GitHub, personal account with push rights to `nrashid7/sigyn`) and `brew install supabase/tap/supabase deno && supabase login && supabase link --project-ref wtrqpnzacuaroxluxwfa`.
+**Execution mode (revised again 2026-09-13, user request): code-first.** Claude writes every file (migrations, functions, scripts, tests, frontend edits, docs) and commits locally in `~/Desktop/sigyn`. The user authenticates and deploys from **Cursor** (GitHub push via Cursor's sign-in; `supabase login/link`, `db push`, `secrets set`, `functions deploy`, setup + smoke scripts) following `docs/DEPLOY_FROM_CURSOR.md`, which Claude writes as the final task. `gh` CLI is not required. If Cursor's push to `nrashid7/sigyn` is refused (no collaborator access) → fork to `aspiringlearnerDE` and push there; nothing else changes. Accounts confirmed: Twilio, Stripe, Supabase, ElevenLabs.
+
+**User actions (Cursor terminal, later, in order — details in `docs/DEPLOY_FROM_CURSOR.md`):**
+1. `brew install supabase/tap/supabase deno && supabase login && supabase link --project-ref wtrqpnzacuaroxluxwfa`.
 2. Before P2 deploy: create `~/Desktop/sigyn/supabase/.env.local` (gitignored) with `ELEVENLABS_API_KEY`, `TWILIO_*` (when the account exists), `STRIPE_*`, `N8N_*`, `POSTHOG_*`; export `ELEVENLABS_API_KEY` for `scripts/elevenlabs-setup.mjs`; run the Vault SQL (4.1) in the SQL editor.
 3. Before P3 verification: Stripe test-mode products + webhook endpoint (`api_version=2025-08-27.basil`) → price ids + `whsec_` into `.env.local`; `stripe login` for `stripe trigger`.
 4. Twilio account when ready — until then `agent-provision` stops at step 3 with `PHONE_PROVISION_FAILED` (resumable by re-running Hire), which is the designed behaviour.
