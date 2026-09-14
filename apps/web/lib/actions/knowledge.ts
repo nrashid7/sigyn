@@ -89,13 +89,37 @@ export async function uploadKnowledgeDocument(formData: FormData) {
 }
 
 export async function deleteKnowledgeDocument(id: string) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("knowledge_documents")
-    .delete()
-    .eq("id", id);
+  const business = await getBusiness();
+  if (!business) return { error: "No business found" };
 
-  if (error) return { error: error.message };
+  const supabase = await createClient();
+
+  // The knowledge-delete function runs with the service role and bypasses RLS, so the
+  // ownership check that used to happen implicitly (RLS-scoped delete) is done explicitly here.
+  const { data: existing } = await supabase
+    .from("knowledge_documents")
+    .select("id")
+    .eq("id", id)
+    .eq("business_id", business.id)
+    .single();
+
+  if (!existing) return { error: "Document not found" };
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const serviceKey = getSupabaseServiceRoleKey();
+  const response = await fetch(`${supabaseUrl}/functions/v1/knowledge-delete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${serviceKey}`,
+    },
+    body: JSON.stringify({ document_id: id }),
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => ({}) as { error?: string });
+    return { error: json.error ?? "Failed to delete document" };
+  }
 
   revalidatePath("/dashboard/knowledge");
   return { success: true };
