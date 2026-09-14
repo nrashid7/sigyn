@@ -179,6 +179,20 @@ Deno.test("buildAgentConfig: adds an After hours section with the message verbat
   );
 });
 
+Deno.test("buildAgentConfig: renders template variables inside the After hours message", () => {
+  const config = buildAgentConfig(
+    input({
+      callPrefs: {
+        after_hours_message: "We're closed — {{business_name}} reopens at 9am.",
+      },
+    }),
+  );
+  const prompt = agentOf(config).prompt.prompt;
+
+  assertStringIncludes(prompt, "Acme Plumbing reopens");
+  assertEquals(prompt.includes("{{"), false);
+});
+
 Deno.test("buildAgentConfig: omits the After hours section when the message is empty", () => {
   const config = buildAgentConfig(input({ callPrefs: { after_hours_message: "" } }));
   assertEquals(agentOf(config).prompt.prompt.includes("## After hours"), false);

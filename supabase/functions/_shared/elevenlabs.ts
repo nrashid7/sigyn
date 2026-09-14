@@ -402,7 +402,10 @@ export function buildAgentConfig(input: BuildAgentConfigInput): ElAgentConfig {
   }
 
   if (callPrefs?.after_hours_message) {
-    sections.push(`## After hours\n${callPrefs.after_hours_message}`);
+    // Owner-written, so it may well contain {{business_name}} — render it like any template.
+    sections.push(
+      `## After hours\n${mergeTemplateVariables(callPrefs.after_hours_message, business)}`,
+    );
   }
 
   const prompt = sections.join("\n\n");
