@@ -16,7 +16,7 @@
     "deploy:functions": "supabase functions deploy --use-api",
     "secrets:set": "supabase secrets set --env-file supabase/.env.local",
     "test": "npm run test:node && npm run test:deno",
-    "test:node": "node --test scripts/",
+    "test:node": "node --test \"scripts/**/*.test.mjs\"",
     "test:deno": "deno test --allow-env --allow-read supabase/functions/tests",
     "deploy:n8n": "node scripts/deploy-n8n-workflows.mjs"
   },
