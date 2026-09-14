@@ -5,6 +5,20 @@ import { createClient } from "@/lib/supabase/server";
 import { getSupabaseServiceRoleKey } from "@/lib/supabase/admin";
 import { getBusiness } from "./business";
 
+// Mirrors supabase/functions/_shared/knowledge.ts's SUPPORTED_EXTENSIONS. Duplicated here
+// because Next can't import Deno edge function code.
+const SUPPORTED_KNOWLEDGE_EXTENSIONS = ["pdf", "docx", "txt", "md", "html", "epub", "csv"];
+
+function knowledgeFileExtension(filename: string): string {
+  const dotIndex = filename.lastIndexOf(".");
+  if (dotIndex === -1 || dotIndex === filename.length - 1) return "";
+  return filename.slice(dotIndex + 1).toLowerCase();
+}
+
+function isSupportedKnowledgeFile(filename: string): boolean {
+  return SUPPORTED_KNOWLEDGE_EXTENSIONS.includes(knowledgeFileExtension(filename));
+}
+
 export async function getKnowledgeDocuments() {
   const business = await getBusiness();
   if (!business) return [];
@@ -25,6 +39,14 @@ export async function uploadKnowledgeDocument(formData: FormData) {
 
   const file = formData.get("file") as File;
   if (!file) return { error: "No file provided" };
+
+  if (!isSupportedKnowledgeFile(file.name)) {
+    return {
+      error: `Unsupported file type: .${
+        knowledgeFileExtension(file.name)
+      }. Upload PDF, DOCX, TXT, MD, HTML, EPUB or CSV.`,
+    };
+  }
 
   const supabase = await createClient();
   const path = `${business.id}/${Date.now()}-${file.name}`;
