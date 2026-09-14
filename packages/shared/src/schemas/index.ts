@@ -31,9 +31,9 @@ export const callPreferencesSchema = z.object({
 });
 
 export const voiceSelectionSchema = z.object({
-  voice_provider: z.enum(["retell", "elevenlabs"]),
-  voice_id: z.string(),
-  template_id: z.string().uuid(),
+  voice_provider: z.literal("elevenlabs").default("elevenlabs"),
+  voice_id: z.string().min(1, "Select a voice"),
+  template_slug: z.string().min(1, "Select an agent"),
 });
 
 export const signupSchema = z.object({

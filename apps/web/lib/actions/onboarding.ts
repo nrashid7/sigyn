@@ -73,7 +73,6 @@ export async function saveVoiceSelection(formData: FormData) {
   if (!business) return { error: "No business found" };
 
   const templateSlug = formData.get("template_slug") as string;
-  const voiceProvider = formData.get("voice_provider") as "retell" | "elevenlabs";
   const voiceId = formData.get("voice_id") as string;
 
   if (!templateSlug || !voiceId) {
@@ -81,9 +80,9 @@ export async function saveVoiceSelection(formData: FormData) {
   }
 
   const parsed = voiceSelectionSchema.safeParse({
-    voice_provider: voiceProvider,
+    voice_provider: "elevenlabs",
     voice_id: voiceId,
-    template_id: "00000000-0000-0000-0000-000000000001",
+    template_slug: templateSlug,
   });
 
   if (!parsed.success) {
@@ -93,7 +92,7 @@ export async function saveVoiceSelection(formData: FormData) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const serviceKey = getSupabaseServiceRoleKey();
 
-  const response = await fetch(`${supabaseUrl}/functions/v1/retell-create-agent`, {
+  const response = await fetch(`${supabaseUrl}/functions/v1/agent-provision`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -104,14 +103,26 @@ export async function saveVoiceSelection(formData: FormData) {
       template_slug: templateSlug,
       name: (formData.get("agent_name") as string) || "AI Employee",
       voice_id: voiceId,
-      voice_provider: voiceProvider,
+      voice_provider: "elevenlabs",
       include_calendar: true,
     }),
   });
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    return { error: (err as { error?: string }).error ?? "Failed to hire agent" };
+    const { error: message, code } = err as { error?: string; code?: string };
+
+    if (code === "PROVISIONING") {
+      return { error: "Your agent is still being set up — try again in a minute." };
+    }
+
+    const errorMessage = message ?? "Failed to hire agent";
+    return {
+      error:
+        code === "PHONE_PROVISION_FAILED"
+          ? `Phone number setup failed: ${errorMessage}`
+          : errorMessage,
+    };
   }
 
   const supabase = await createClient();

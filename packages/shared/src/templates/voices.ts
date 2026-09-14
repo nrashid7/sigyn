@@ -27,14 +27,6 @@ export const elevenLabsVoices: ElevenLabsVoice[] = [
   },
 ];
 
-export const retellDefaultVoices = [
-  { id: "11labs-Adrian", name: "Adrian", description: "Professional male" },
-  { id: "retell-Willa", name: "Willa", description: "Friendly female" },
-  { id: "cartesia-Adam", name: "Adam", description: "Confident male" },
-  { id: "11labs-Lily", name: "Lily", description: "Warm female" },
-  { id: "11labs-Grace", name: "Grace", description: "Calm female" },
-];
-
 export const templateSlugMap: Record<string, string> = {
   Dexter: "dexter",
   Zia: "zia",

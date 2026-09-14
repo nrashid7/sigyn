@@ -19,7 +19,7 @@ export function DashboardAgentCard({ agent }: AgentCardProps) {
     (t) => t.agent_name.toLowerCase() === agent.name.toLowerCase()
   );
   const { playPreview, playing, loading } = useVoicePreview();
-  const voiceId = agent.voice_id ?? template?.voice.elevenlabs_voice_id ?? template?.voice.retell_voice_id ?? "";
+  const voiceId = agent.voice_id ?? template?.voice.elevenlabs_voice_id ?? "";
 
   return (
     <Card>
@@ -40,11 +40,19 @@ export function DashboardAgentCard({ agent }: AgentCardProps) {
         )}
       </CardHeader>
       <CardContent className="space-y-4">
-        {agent.phone_number && (
-          <p className="text-sm">
-            <span className="text-muted-foreground">Phone: </span>
-            <span className="font-mono text-indigo-300">{agent.phone_number}</span>
-          </p>
+        {agent.provision_status === "failed" ? (
+          <Badge variant="destructive" title={agent.provision_error ?? undefined}>
+            Setup failed
+          </Badge>
+        ) : agent.provision_status === "provisioning" ? (
+          <Badge variant="warning">Setting up…</Badge>
+        ) : (
+          agent.phone_number && (
+            <p className="text-sm">
+              <span className="text-muted-foreground">Phone: </span>
+              <span className="font-mono text-indigo-300">{agent.phone_number}</span>
+            </p>
+          )
         )}
         <div className="flex gap-2">
           <Button

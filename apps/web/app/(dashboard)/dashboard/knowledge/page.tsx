@@ -102,7 +102,7 @@ export default function KnowledgePage() {
                   <div>
                     <p className="font-medium">{doc.filename}</p>
                     <p className="text-xs text-muted-foreground">
-                      {doc.chunk_count} chunks · {doc.file_type}
+                      {doc.file_type.toUpperCase()}
                     </p>
                   </div>
                 </div>

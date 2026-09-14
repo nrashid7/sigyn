@@ -55,9 +55,7 @@ export interface AgentTemplateDisplay {
 }
 
 export interface AgentTemplateVoice {
-  retell_voice_id: string;
-  elevenlabs_voice_id?: string;
-  default_provider: "retell" | "elevenlabs";
+  elevenlabs_voice_id: string;
 }
 
 export interface AgentTemplateConfig {
@@ -66,12 +64,20 @@ export interface AgentTemplateConfig {
   display: AgentTemplateDisplay;
   voice: AgentTemplateVoice;
   system_prompt: string;
+  first_message?: string;
   objection_handlers: Array<{ trigger: string; response: string }>;
   booking_rules: string[];
   escalation_rules: Array<{ condition: string; action: string }>;
   faq_rules: string[];
   qualification_questions: string[];
-  retell_llm_config: Record<string, unknown>;
+  elevenlabs: {
+    llm: string;
+    temperature: number;
+    data_collection?: Record<
+      string,
+      { type: "string" | "boolean" | "integer" | "number"; description: string }
+    >;
+  };
   locale?: string;
 }
 
@@ -116,13 +122,16 @@ export interface Agent {
   template_id: string;
   name: string;
   type: AgentType;
-  retell_agent_id: string | null;
-  retell_llm_id: string | null;
+  elevenlabs_agent_id: string | null;
+  elevenlabs_phone_number_id: string | null;
+  twilio_phone_sid: string | null;
   phone_number: string | null;
-  voice_provider: "retell" | "elevenlabs";
+  voice_provider: "elevenlabs";
   voice_id: string | null;
   config: Record<string, unknown>;
   is_active: boolean;
+  provision_status: "provisioning" | "ready" | "failed";
+  provision_error: string | null;
   hired_at: string;
 }
 
@@ -130,7 +139,7 @@ export interface Call {
   id: string;
   business_id: string;
   agent_id: string | null;
-  retell_call_id: string;
+  elevenlabs_conversation_id: string;
   caller_number: string | null;
   duration_seconds: number;
   status: CallStatus;
@@ -138,6 +147,7 @@ export interface Call {
   sentiment: string | null;
   lead_score: number | null;
   recording_url: string | null;
+  provider_metadata: Record<string, unknown>;
   started_at: string;
   ended_at: string | null;
   created_at: string;
@@ -160,6 +170,7 @@ export interface KnowledgeDocument {
   storage_path: string;
   status: DocumentStatus;
   chunk_count: number;
+  elevenlabs_document_id: string | null;
   error_message: string | null;
   created_at: string;
 }
@@ -191,7 +202,7 @@ export interface Integration {
 export interface Subscription {
   id: string;
   business_id: string;
-  stripe_customer_id: string;
+  stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   plan: SubscriptionPlan;
   status: SubscriptionStatus;

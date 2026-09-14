@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Play, Loader2, Sparkles } from "lucide-react";
+import { Play, Loader2 } from "lucide-react";
 import {
   agentTemplates,
   industryTemplateMap,
   templateSlugMap,
-  retellDefaultVoices,
   elevenLabsVoices,
 } from "@businessvoice/shared";
 import { saveVoiceSelection } from "@/lib/actions/onboarding";
@@ -21,20 +20,16 @@ import { useVoicePreview } from "@/lib/hooks/use-voice-preview";
 
 export default function OnboardingVoicePage() {
   const [selected, setSelected] = useState(agentTemplates[0]);
-  const [voiceProvider, setVoiceProvider] = useState<"retell" | "elevenlabs">("retell");
-  const [selectedVoiceId, setSelectedVoiceId] = useState(retellDefaultVoices[0].id);
+  const [selectedVoiceId, setSelectedVoiceId] = useState(
+    agentTemplates[0].voice.elevenlabs_voice_id ?? elevenLabsVoices[0].voice_id
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [industry, setIndustry] = useState<string>("general_smb");
   const { playPreview, playing, loading: previewLoading } = useVoicePreview();
 
-  function getDefaultVoiceId(
-    template: typeof selected,
-    provider: "retell" | "elevenlabs"
-  ) {
-    return provider === "retell"
-      ? template.voice.retell_voice_id
-      : template.voice.elevenlabs_voice_id ?? elevenLabsVoices[0].voice_id;
+  function getDefaultVoiceId(template: typeof selected) {
+    return template.voice.elevenlabs_voice_id ?? elevenLabsVoices[0].voice_id;
   }
 
   useEffect(() => {
@@ -44,7 +39,7 @@ export default function OnboardingVoicePage() {
         const recommended = industryTemplateMap[b.industry];
         if (recommended) {
           setSelected(recommended);
-          setSelectedVoiceId(recommended.voice.retell_voice_id);
+          setSelectedVoiceId(recommended.voice.elevenlabs_voice_id ?? elevenLabsVoices[0].voice_id);
         }
       }
     });
@@ -56,7 +51,7 @@ export default function OnboardingVoicePage() {
     setError(null);
 
     const formData = new FormData();
-    formData.set("voice_provider", voiceProvider);
+    formData.set("voice_provider", "elevenlabs");
     formData.set("voice_id", selectedVoiceId);
     formData.set("template_slug", templateSlugMap[selected.agent_name] ?? "dexter");
     formData.set("agent_name", selected.agent_name);
@@ -68,7 +63,7 @@ export default function OnboardingVoicePage() {
     }
   }
 
-  const voices = voiceProvider === "retell" ? retellDefaultVoices : elevenLabsVoices;
+  const voices = elevenLabsVoices;
 
   return (
     <OnboardingLayout
@@ -95,7 +90,7 @@ export default function OnboardingVoicePage() {
               )}
               onClick={() => {
                 setSelected(template);
-                setSelectedVoiceId(getDefaultVoiceId(template, voiceProvider));
+                setSelectedVoiceId(getDefaultVoiceId(template));
               }}
             >
               <CardContent className="flex items-center gap-4 p-4">
@@ -122,81 +117,43 @@ export default function OnboardingVoicePage() {
           </p>
         )}
 
-        <div className="space-y-3">
-          <p className="text-sm font-medium">Voice provider</p>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant={voiceProvider === "retell" ? "default" : "outline"}
-              onClick={() => {
-                setVoiceProvider("retell");
-                setSelectedVoiceId(getDefaultVoiceId(selected, "retell"));
-              }}
-            >
-              Retell Default
-            </Button>
-            <Button
-              type="button"
-              variant={voiceProvider === "elevenlabs" ? "default" : "outline"}
-              onClick={() => {
-                setVoiceProvider("elevenlabs");
-                setSelectedVoiceId(getDefaultVoiceId(selected, "elevenlabs"));
-              }}
-              className="gap-1"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              ElevenLabs Premium
-            </Button>
-          </div>
-        </div>
-
         <div className="grid gap-2 sm:grid-cols-2">
-          {voices.map((voice) => {
-            const id = "id" in voice ? voice.id : voice.voice_id;
-            const name = voice.name;
-            const isPremium = "is_premium" in voice && voice.is_premium;
-            return (
-              <Card
-                key={id}
-                className={cn(
-                  "cursor-pointer transition-all",
-                  selectedVoiceId === id ? "ring-2 ring-cyan-500" : "hover:bg-white/5"
-                )}
-                onClick={() => setSelectedVoiceId(id)}
-              >
-                <CardContent className="flex items-center justify-between p-3">
-                  <div>
-                    <p className="font-medium text-sm">{name}</p>
-                    {"description" in voice && (
-                      <p className="text-xs text-muted-foreground">{voice.description}</p>
+          {voices.map((voice) => (
+            <Card
+              key={voice.voice_id}
+              className={cn(
+                "cursor-pointer transition-all",
+                selectedVoiceId === voice.voice_id ? "ring-2 ring-cyan-500" : "hover:bg-white/5"
+              )}
+              onClick={() => setSelectedVoiceId(voice.voice_id)}
+            >
+              <CardContent className="flex items-center justify-between p-3">
+                <div>
+                  <p className="font-medium text-sm">{voice.name}</p>
+                  <p className="text-xs text-muted-foreground">{voice.category}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {voice.is_premium && <Badge variant="secondary">Premium</Badge>}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playPreview(voice.voice_id);
+                    }}
+                    disabled={previewLoading}
+                  >
+                    {previewLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Play className={cn("h-4 w-4", playing && "text-cyan-400")} />
                     )}
-                    {"category" in voice && (
-                      <p className="text-xs text-muted-foreground">{voice.category}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isPremium && <Badge variant="secondary">Premium</Badge>}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        playPreview(id);
-                      }}
-                      disabled={previewLoading}
-                    >
-                      {previewLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Play className={cn("h-4 w-4", playing && "text-cyan-400")} />
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
         <Button type="submit" variant="gradient" className="w-full" size="lg" disabled={loading}>
