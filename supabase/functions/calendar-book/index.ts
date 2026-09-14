@@ -16,9 +16,7 @@ import {
   toolResponse,
   type ToolRequestBody,
 } from "../_shared/tool-context.ts";
-import { ALL_PARAMS, REQUIRED_PARAMS } from "./params.ts";
-
-export { ALL_PARAMS, REQUIRED_PARAMS };
+import { REQUIRED_PARAMS } from "./params.ts";
 
 interface BookBody {
   caller_id?: string;
@@ -58,6 +56,29 @@ Deno.serve(async (req) => {
       normalizePhone(fields.caller_id) ??
       fields.customer_phone;
 
+    // Format the confirmation time BEFORE any write (appointment insert / calls
+    // update) so a bad ctx.business.timezone can only ever fall back to UTC — it
+    // can never throw after the booking has already been committed.
+    const displayTimeFormat: Intl.DateTimeFormatOptions = {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    };
+    let displayTime: string;
+    try {
+      displayTime = new Date(fields.scheduled_at).toLocaleString("en-US", {
+        ...displayTimeFormat,
+        timeZone: ctx.business.timezone,
+      });
+    } catch {
+      displayTime = new Date(fields.scheduled_at).toLocaleString("en-US", {
+        ...displayTimeFormat,
+        timeZone: "UTC",
+      });
+    }
+
     let booking: { appointmentId: string; externalId?: string };
     try {
       booking = await createBooking(supabase, {
@@ -73,9 +94,18 @@ Deno.serve(async (req) => {
       });
     } catch (error) {
       if (error instanceof AppError && error.statusCode < 500) {
+        console.error(
+          `[calendar-book] Booking failed for call ${ctx.callId}: ${error.message}`,
+        );
+        if (error.code === "SLOT_TAKEN") {
+          return toolResponse(
+            "That time is not available. Please offer another slot.",
+            { success: false, code: error.code },
+          );
+        }
         return toolResponse(
-          "That time is not available. Please offer another slot.",
-          { success: false },
+          "I can't book that right now. Let me take your details and someone will call you back to confirm.",
+          { success: false, code: error.code },
         );
       }
       throw error;
@@ -100,15 +130,6 @@ Deno.serve(async (req) => {
     } catch (error) {
       console.warn("[calendar-book] Analytics capture failed:", error);
     }
-
-    const displayTime = new Date(fields.scheduled_at).toLocaleString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: ctx.business.timezone,
-    });
 
     return toolResponse(
       `Appointment confirmed for ${fields.customer_name} on ${displayTime}.`,

@@ -15,9 +15,7 @@ import {
   toolResponse,
   type ToolRequestBody,
 } from "../_shared/tool-context.ts";
-import { ALL_PARAMS, REQUIRED_PARAMS } from "./params.ts";
-
-export { ALL_PARAMS, REQUIRED_PARAMS };
+import { REQUIRED_PARAMS } from "./params.ts";
 
 interface QualifyLeadBody {
   caller_id?: string;
@@ -65,15 +63,21 @@ Deno.serve(async (req) => {
       throw new AppError(`Failed to load call: ${fetchError.message}`, 500, "DB_ERROR");
     }
 
+    // Only fields actually provided on this call overwrite what's already stored —
+    // an omitted (undefined) field must never clobber existing qualification data.
+    const definedUpdates: Record<string, unknown> = { name: fields.name };
+    if (fields.email !== undefined) definedUpdates.email = fields.email;
+    if (fields.company !== undefined) definedUpdates.company = fields.company;
+    if (fields.need !== undefined) definedUpdates.need = fields.need;
+    if (fields.timeline !== undefined) definedUpdates.timeline = fields.timeline;
+    if (fields.budget !== undefined) definedUpdates.budget = fields.budget;
+
+    const normalizedPhone = normalizePhone(fields.caller_id);
+    if (normalizedPhone !== null) definedUpdates.phone = normalizedPhone;
+
     const qualificationData = {
       ...(existingCall?.qualification_data ?? {}),
-      name: fields.name,
-      email: fields.email,
-      company: fields.company,
-      need: fields.need,
-      timeline: fields.timeline,
-      budget: fields.budget,
-      phone: normalizePhone(fields.caller_id),
+      ...definedUpdates,
     };
 
     const { error: updateError } = await supabase

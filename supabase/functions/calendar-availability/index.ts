@@ -8,9 +8,7 @@ import {
   toolResponse,
   type ToolRequestBody,
 } from "../_shared/tool-context.ts";
-import { ALL_PARAMS, REQUIRED_PARAMS } from "./params.ts";
-
-export { ALL_PARAMS, REQUIRED_PARAMS };
+import { REQUIRED_PARAMS } from "./params.ts";
 
 interface AvailabilityBody {
   start_date: string;
@@ -45,7 +43,7 @@ Deno.serve(async (req) => {
     const slots = await checkAvailability(supabase, {
       businessId: ctx.business.id,
       startDate: fields.start_date,
-      endDate: fields.end_date ?? fields.start_date,
+      endDate: fields.end_date,
       durationMinutes: fields.duration_minutes ?? 30,
     });
 

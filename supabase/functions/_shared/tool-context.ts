@@ -45,7 +45,10 @@ export async function resolveToolContext(
   const agentId = body.agent_id;
   const conversationId = body.conversation_id;
 
-  if (!agentId || !conversationId) {
+  if (
+    typeof agentId !== "string" || agentId === "" ||
+    typeof conversationId !== "string" || conversationId === ""
+  ) {
     throw new AppError("agent_id and conversation_id are required", 400);
   }
 

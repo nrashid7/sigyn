@@ -213,6 +213,25 @@ export function mapConversationToCallRow(
   };
 }
 
+/**
+ * A call row found by `elevenlabs_conversation_id` must belong to the requesting
+ * agent's business — otherwise a caller who forges/replays another tenant's
+ * conversation_id could attach a mid-call write (booking, qualification) to that
+ * tenant's call row.
+ */
+export function assertCallOwnership(
+  call: { business_id: string },
+  agent: AgentRow,
+): void {
+  if (call.business_id !== agent.business_id) {
+    throw new AppError(
+      "Conversation belongs to another business",
+      409,
+      "CONVERSATION_MISMATCH",
+    );
+  }
+}
+
 /** Creates the in-progress call row a live tool call can attach to. */
 export async function ensureCallStub(
   supabase: SupabaseClient,
@@ -222,11 +241,14 @@ export async function ensureCallStub(
 ): Promise<{ id: string }> {
   const { data: existing } = await supabase
     .from("calls")
-    .select("id")
+    .select("id, business_id")
     .eq("elevenlabs_conversation_id", conversationId)
     .maybeSingle();
 
-  if (existing) return { id: existing.id };
+  if (existing) {
+    assertCallOwnership(existing, agent);
+    return { id: existing.id };
+  }
 
   const { data: inserted, error } = await supabase
     .from("calls")
@@ -246,10 +268,13 @@ export async function ensureCallStub(
     if (error.code === "23505") {
       const { data: raced } = await supabase
         .from("calls")
-        .select("id")
+        .select("id, business_id")
         .eq("elevenlabs_conversation_id", conversationId)
         .maybeSingle();
-      if (raced) return { id: raced.id };
+      if (raced) {
+        assertCallOwnership(raced, agent);
+        return { id: raced.id };
+      }
     }
     throw new AppError(
       `Failed to create call record: ${error.message}`,
