@@ -8,3 +8,33 @@ enabled = true
 
 [db]
 major_version = 17
+
+# Public endpoints authenticate themselves (HMAC / signature / shared-secret header)
+[functions.elevenlabs-webhook]
+verify_jwt = false
+[functions.stripe-webhook]
+verify_jwt = false
+[functions.calendar-availability]
+verify_jwt = false
+[functions.calendar-book]
+verify_jwt = false
+[functions.qualify-lead]
+verify_jwt = false
+
+# Service-role only (gateway JWT check + requireServiceRole in code)
+[functions.agent-provision]
+verify_jwt = true
+[functions.agent-sync]
+verify_jwt = true
+[functions.calls-reconcile]
+verify_jwt = true
+[functions.knowledge-ingest]
+verify_jwt = true
+[functions.knowledge-delete]
+verify_jwt = true
+[functions.n8n-dispatch]
+verify_jwt = true
+[functions.sync-n8n-workflows]
+verify_jwt = true
+[functions.voice-preview]
+verify_jwt = true

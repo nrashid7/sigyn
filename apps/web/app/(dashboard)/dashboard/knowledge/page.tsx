@@ -68,7 +68,7 @@ export default function KnowledgePage() {
             <input
               type="file"
               className="hidden"
-              accept=".pdf,.doc,.docx,.txt,.md"
+              accept=".pdf,.docx,.txt,.md,.html,.epub,.csv"
               onChange={handleUpload}
               disabled={uploading}
             />
@@ -102,7 +102,7 @@ export default function KnowledgePage() {
                   <div>
                     <p className="font-medium">{doc.filename}</p>
                     <p className="text-xs text-muted-foreground">
-                      {doc.chunk_count} chunks · {doc.file_type}
+                      {doc.file_type.toUpperCase()}
                     </p>
                   </div>
                 </div>

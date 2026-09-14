@@ -10,8 +10,8 @@ function getStripe() {
 }
 
 const PRICE_MAP: Record<string, string> = {
-  starter: process.env.STRIPE_PRICE_STARTER || process.env.STRIPE_STARTER_PRICE_ID || "",
-  pro: process.env.STRIPE_PRICE_PRO || process.env.STRIPE_PRO_PRICE_ID || "",
+  starter: process.env.STRIPE_PRICE_STARTER || "",
+  pro: process.env.STRIPE_PRICE_PRO || "",
 };
 
 export async function GET(request: Request) {
@@ -41,6 +41,19 @@ async function createCheckout(plan: string, request: Request) {
     }
 
     const business = await getBusiness();
+    if (!business) {
+      return NextResponse.json(
+        { error: "Create a business before subscribing" },
+        { status: 400 },
+      );
+    }
+
+    const { data: existingSubscription } = await supabase
+      .from("subscriptions")
+      .select("stripe_customer_id")
+      .eq("business_id", business.id)
+      .maybeSingle();
+
     const origin = request.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL;
 
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
@@ -58,15 +71,18 @@ async function createCheckout(plan: string, request: Request) {
       line_items: lineItems,
       success_url: `${origin}/dashboard/billing?success=true`,
       cancel_url: `${origin}/dashboard/billing?canceled=true`,
-      customer_email: user.email ?? undefined,
+      client_reference_id: business.id,
+      ...(existingSubscription?.stripe_customer_id
+        ? { customer: existingSubscription.stripe_customer_id }
+        : { customer_email: user.email ?? undefined }),
       metadata: {
-        business_id: business?.id || "",
+        business_id: business.id,
         user_id: user.id,
         plan,
       },
       subscription_data: {
         metadata: {
-          business_id: business?.id || "",
+          business_id: business.id,
           user_id: user.id,
           plan,
         },

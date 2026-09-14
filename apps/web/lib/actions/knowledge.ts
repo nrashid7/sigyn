@@ -5,6 +5,27 @@ import { createClient } from "@/lib/supabase/server";
 import { getSupabaseServiceRoleKey } from "@/lib/supabase/admin";
 import { getBusiness } from "./business";
 
+// Mirrors supabase/functions/_shared/knowledge.ts's SUPPORTED_EXTENSIONS. Duplicated here
+// because Next can't import Deno edge function code.
+const SUPPORTED_KNOWLEDGE_EXTENSIONS = ["pdf", "docx", "txt", "md", "html", "epub", "csv"];
+
+function knowledgeFileExtension(filename: string): string {
+  const dotIndex = filename.lastIndexOf(".");
+  if (dotIndex === -1 || dotIndex === filename.length - 1) return "";
+  return filename.slice(dotIndex + 1).toLowerCase();
+}
+
+function isSupportedKnowledgeFile(filename: string): boolean {
+  return SUPPORTED_KNOWLEDGE_EXTENSIONS.includes(knowledgeFileExtension(filename));
+}
+
+// Mirrors supabase/functions/_shared/knowledge.ts's unsupportedFileTypeMessage.
+function unsupportedKnowledgeFileMessage(filename: string): string {
+  const ext = knowledgeFileExtension(filename);
+  const extLabel = ext ? `.${ext}` : "(no extension)";
+  return `Unsupported file type: ${extLabel}. Upload PDF, DOCX, TXT, MD, HTML, EPUB or CSV.`;
+}
+
 export async function getKnowledgeDocuments() {
   const business = await getBusiness();
   if (!business) return [];
@@ -26,6 +47,10 @@ export async function uploadKnowledgeDocument(formData: FormData) {
   const file = formData.get("file") as File;
   if (!file) return { error: "No file provided" };
 
+  if (!isSupportedKnowledgeFile(file.name)) {
+    return { error: unsupportedKnowledgeFileMessage(file.name) };
+  }
+
   const supabase = await createClient();
   const path = `${business.id}/${Date.now()}-${file.name}`;
 
@@ -35,13 +60,14 @@ export async function uploadKnowledgeDocument(formData: FormData) {
 
   if (uploadError) return { error: uploadError.message };
 
+  // Only the columns the `authenticated` role is granted INSERT on
+  // (20260913000004_agent_column_grants.sql). `chunk_count` defaults to 0 in the schema.
   const { data: doc, error } = await supabase.from("knowledge_documents").insert({
     business_id: business.id,
     filename: file.name,
     file_type: file.type,
     storage_path: path,
     status: "pending",
-    chunk_count: 0,
   }).select().single();
 
   if (error) return { error: error.message };
@@ -67,13 +93,37 @@ export async function uploadKnowledgeDocument(formData: FormData) {
 }
 
 export async function deleteKnowledgeDocument(id: string) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("knowledge_documents")
-    .delete()
-    .eq("id", id);
+  const business = await getBusiness();
+  if (!business) return { error: "No business found" };
 
-  if (error) return { error: error.message };
+  const supabase = await createClient();
+
+  // The knowledge-delete function runs with the service role and bypasses RLS, so the
+  // ownership check that used to happen implicitly (RLS-scoped delete) is done explicitly here.
+  const { data: existing } = await supabase
+    .from("knowledge_documents")
+    .select("id")
+    .eq("id", id)
+    .eq("business_id", business.id)
+    .single();
+
+  if (!existing) return { error: "Document not found" };
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const serviceKey = getSupabaseServiceRoleKey();
+  const response = await fetch(`${supabaseUrl}/functions/v1/knowledge-delete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${serviceKey}`,
+    },
+    body: JSON.stringify({ document_id: id }),
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => ({}) as { error?: string });
+    return { error: json.error ?? "Failed to delete document" };
+  }
 
   revalidatePath("/dashboard/knowledge");
   return { success: true };

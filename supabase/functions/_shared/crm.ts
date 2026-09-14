@@ -27,6 +27,7 @@ export interface BuildCrmPayloadOptions {
   outcome?: string;
   extractedEntities?: Record<string, unknown>;
   appointmentId?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export function buildN8nDispatchPayload(
@@ -34,6 +35,7 @@ export function buildN8nDispatchPayload(
 ): N8nDispatchPayload {
   const metadata: Record<string, unknown> = {
     ...(options.extractedEntities ?? {}),
+    ...(options.metadata ?? {}),
     dispatched_at: new Date().toISOString(),
   };
 

@@ -14,3 +14,4 @@ supabase/.temp/
 supabase/supabase/.temp/
 
 .vercel
+deno.lock

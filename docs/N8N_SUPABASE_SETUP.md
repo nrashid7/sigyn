@@ -3,7 +3,7 @@
 BusinessVoice AI uses a **hybrid automation model**:
 
 ```
-Retell webhook → Supabase Edge Function → n8n Call Completed Router → CRM / SMS / Sheets
+ElevenLabs webhook → Supabase Edge Function → n8n Call Completed Router → CRM / SMS / Sheets
 ```
 
 Supabase handles realtime call logic. n8n handles long-running CRM chains.
@@ -22,7 +22,7 @@ Status (as of setup):
 1. **Migrations applied** — full schema (16 tables, RLS, storage bucket)
 2. **Seed data** — 5 agent templates + 5 n8n workflow rows in `workflows`
 3. **Edge Functions deployed** — especially:
-   - `retell-webhook`
+   - `elevenlabs-webhook`
    - `n8n-dispatch`
    - `sync-n8n-workflows`
 
@@ -58,20 +58,11 @@ supabase secrets set \
 2. Run from repo root:
 
 ```bash
-set N8N_API_KEY=your-key
+export N8N_API_KEY=your-key
 npm run deploy:n8n
 ```
 
 This imports all JSON from `n8n/workflows/`, updates existing workflows by name, and **activates** them.
-
-### Cursor n8n MCP (optional)
-
-Link your Railway instance in the [n8n MCP dashboard](https://dashboard.n8n-mcp.com) with:
-
-- **API URL:** `https://n8n-production-08c9.up.railway.app`
-- **API key:** from step 1 above
-
-Until linked, MCP tools return `n8n API not configured`.
 
 ### Workflows to verify
 
@@ -86,14 +77,6 @@ Import or verify these 5 workflows exist and are **Active**:
 | BusinessVoice - Google Sheets Log | `sheets-log` | Append call rows |
 
 Workflow JSON exports live in [`n8n/workflows/`](../n8n/workflows/).
-
-### Getting Webhook URLs from n8n MCP
-
-Use the n8n MCP in Cursor to list workflows and copy production webhook URLs from each Webhook trigger node. The URL format is typically:
-
-```
-https://<instance>.app.n8n.cloud/webhook/<path>
-```
 
 ---
 
@@ -147,8 +130,8 @@ Check **Executions** in n8n for the Call Completed Router workflow.
 
 ### End-to-end
 
-1. Complete a test call via Retell
-2. `retell-webhook` fires → `n8n-dispatch`
+1. Complete a test call via ElevenLabs
+2. `elevenlabs-webhook` fires → `n8n-dispatch`
 3. n8n router branches to SMS/CRM based on business integrations
 
 ---
@@ -169,7 +152,6 @@ Check **Executions** in n8n for the Call Completed Router workflow.
 | Webhooks return **404** | Open each workflow in n8n → Webhook node → **Activate** workflow → copy **Production** URL path |
 | n8n execution never starts | Verify workflow is Active; check webhook URL matches |
 | Duplicate CRM entries | Ensure only router has `dispatch_target: true` in config |
-| MCP can't list workflows | Add n8n API URL + key in Cursor MCP settings |
 
 ### Railway instance
 
@@ -187,5 +169,4 @@ Check **Executions** in n8n for the Call Completed Router workflow.
 
 If your n8n workflows use different paths, update:
 - `packages/shared/src/config/n8n.ts`
-- `scripts/sync-n8n-workflows.sql`
 - Supabase `workflows` table via `/admin` → Sync Workflows

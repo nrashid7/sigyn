@@ -34,7 +34,7 @@ const agentPortraits: Record<string, string> = {
 export function MarketingAgentCard({ template, index }: MarketingAgentCardProps) {
   const { display, agent_name, voice } = template;
   const { playPreview, playing, loading } = useVoicePreview();
-  const previewVoiceId = voice.elevenlabs_voice_id ?? voice.retell_voice_id;
+  const previewVoiceId = voice.elevenlabs_voice_id;
   const portrait = agentPortraits[agent_name] ?? display.avatar;
 
   return (

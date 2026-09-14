@@ -12,7 +12,9 @@ export async function getCalls(limit = 50) {
     .from("calls")
     .select("*")
     .eq("business_id", business.id)
-    .order("started_at", { ascending: false })
+    // started_at is nullable (in-progress rows, and failures the provider never timed).
+    // Postgres sorts NULLs first on DESC, which would float those to the top of the list.
+    .order("started_at", { ascending: false, nullsFirst: false })
     .limit(limit);
 
   return data || [];

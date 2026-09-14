@@ -13,6 +13,7 @@ import {
   postToN8nWebhook,
   selectDispatchTargets,
 } from "../_shared/n8n.ts";
+import { requireServiceRole } from "../_shared/auth.ts";
 
 interface DispatchRequest {
   event: string;
@@ -38,6 +39,8 @@ Deno.serve(async (req) => {
   }
 
   try {
+    requireServiceRole(req);
+
     const body = await parseJsonBody<DispatchRequest>(req);
     const { event, business_id, call_id, workflow_id } = body;
 

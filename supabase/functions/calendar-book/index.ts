@@ -7,23 +7,34 @@ import {
   parseJsonBody,
 } from "../_shared/errors.ts";
 import { createBooking } from "../_shared/calendar.ts";
+import { requireToolSecret } from "../_shared/auth.ts";
+import { normalizePhone } from "../_shared/elevenlabs.ts";
 import { captureBusinessEvent } from "../_shared/analytics.ts";
+import {
+  formatInBusinessTimeZone,
+  parseToolBody,
+  resolveToolContext,
+  toolResponse,
+  type ToolRequestBody,
+} from "../_shared/tool-context.ts";
+import { REQUIRED_PARAMS } from "./params.ts";
 
-interface BookRequest {
-  business_id: string;
+const CONFIRMATION_TIME_FORMAT: Intl.DateTimeFormatOptions = {
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+};
+
+interface BookBody {
+  caller_id?: string;
   scheduled_at: string;
   customer_name: string;
   customer_phone: string;
   customer_email?: string;
   duration_minutes?: number;
   notes?: string;
-  call_id?: string;
-  agent_id?: string;
-}
-
-interface RetellToolRequest {
-  name?: string;
-  args?: BookRequest;
 }
 
 Deno.serve(async (req) => {
@@ -32,7 +43,7 @@ Deno.serve(async (req) => {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, content-type",
+        "Access-Control-Allow-Headers": "content-type, x-sigyn-tool-secret",
       },
     });
   }
@@ -42,52 +53,83 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const raw = await parseJsonBody<BookRequest | RetellToolRequest>(req);
-    const args = "business_id" in raw ? raw : (raw as RetellToolRequest).args;
+    requireToolSecret(req);
 
-    if (!args?.business_id || !args.scheduled_at || !args.customer_name || !args.customer_phone) {
-      throw new AppError(
-        "business_id, scheduled_at, customer_name, and customer_phone are required",
-        400,
+    const body = await parseJsonBody<Record<string, unknown>>(req);
+    const supabase = createServiceClient();
+    const ctx = await resolveToolContext(supabase, body as ToolRequestBody);
+
+    const fields = parseToolBody<BookBody>(body, REQUIRED_PARAMS);
+
+    const customerPhone = normalizePhone(fields.customer_phone) ??
+      normalizePhone(fields.caller_id) ??
+      fields.customer_phone;
+
+    // Format the confirmation time BEFORE any write (appointment insert / calls
+    // update) so a bad ctx.business.timezone can only ever fall back to UTC — it
+    // can never throw after the booking has already been committed.
+    const displayTime = formatInBusinessTimeZone(
+      new Date(fields.scheduled_at),
+      ctx.business.timezone,
+      CONFIRMATION_TIME_FORMAT,
+    );
+
+    let booking: { appointmentId: string; externalId?: string };
+    try {
+      booking = await createBooking(supabase, {
+        businessId: ctx.business.id,
+        callId: ctx.callId,
+        agentId: ctx.agent.id,
+        scheduledAt: fields.scheduled_at,
+        customerName: fields.customer_name,
+        customerPhone,
+        customerEmail: fields.customer_email,
+        durationMinutes: fields.duration_minutes ?? 30,
+        notes: fields.notes,
+      });
+    } catch (error) {
+      if (error instanceof AppError && error.statusCode < 500) {
+        console.error(
+          `[calendar-book] Booking failed for call ${ctx.callId}: ${error.message}`,
+        );
+        if (error.code === "SLOT_TAKEN") {
+          return toolResponse(
+            "That time is not available. Please offer another slot.",
+            { success: false, code: error.code },
+          );
+        }
+        return toolResponse(
+          "I can't book that right now. Let me take your details and someone will call you back to confirm.",
+          { success: false, code: error.code },
+        );
+      }
+      throw error;
+    }
+
+    const { error: updateError } = await supabase
+      .from("calls")
+      .update({ outcome: "booked" })
+      .eq("id", ctx.callId);
+
+    if (updateError) {
+      console.error(
+        `[calendar-book] Failed to mark call ${ctx.callId} as booked: ${updateError.message}`,
       );
     }
 
-    const supabase = createServiceClient();
-
-    const result = await createBooking(supabase, {
-      businessId: args.business_id,
-      scheduledAt: args.scheduled_at,
-      customerName: args.customer_name,
-      customerPhone: args.customer_phone,
-      customerEmail: args.customer_email,
-      durationMinutes: args.duration_minutes,
-      notes: args.notes,
-      callId: args.call_id,
-      agentId: args.agent_id,
-    });
-
-    if (args.call_id) {
-      await supabase.from("calls").update({ outcome: "booked" }).eq("id", args.call_id);
+    try {
+      await captureBusinessEvent(ctx.business.id, "appointment_booked", {
+        appointment_id: booking.appointmentId,
+        call_id: ctx.callId,
+      });
+    } catch (error) {
+      console.warn("[calendar-book] Analytics capture failed:", error);
     }
 
-    await captureBusinessEvent(args.business_id, "appointment_booked", {
-      appointment_id: result.appointmentId,
-      call_id: args.call_id,
-    });
-
-    const displayTime = new Date(args.scheduled_at).toLocaleString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-
-    return jsonResponse({
-      appointment_id: result.appointmentId,
-      external_id: result.externalId,
-      result: `Appointment confirmed for ${args.customer_name} on ${displayTime}.`,
-    });
+    return toolResponse(
+      `Appointment confirmed for ${fields.customer_name} on ${displayTime}.`,
+      { appointment_id: booking.appointmentId, success: true },
+    );
   } catch (error) {
     return errorResponse(error);
   }

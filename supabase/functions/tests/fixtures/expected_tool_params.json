@@ -1,0 +1,41 @@
+{
+  "check_availability": {
+    "required": ["agent_id", "conversation_id", "start_date"],
+    "properties": {
+      "agent_id": { "type": "string" },
+      "conversation_id": { "type": "string" },
+      "start_date": { "type": "string" },
+      "end_date": { "type": "string" },
+      "duration_minutes": { "type": "integer" }
+    }
+  },
+  "book_appointment": {
+    "required": ["agent_id", "conversation_id", "scheduled_at", "customer_name", "customer_phone"],
+    "properties": {
+      "agent_id": { "type": "string" },
+      "conversation_id": { "type": "string" },
+      "caller_id": { "type": "string" },
+      "scheduled_at": { "type": "string" },
+      "customer_name": { "type": "string" },
+      "customer_phone": { "type": "string" },
+      "customer_email": { "type": "string" },
+      "duration_minutes": { "type": "integer" },
+      "notes": { "type": "string" }
+    }
+  },
+  "qualify_lead": {
+    "required": ["agent_id", "conversation_id", "name", "lead_score"],
+    "properties": {
+      "agent_id": { "type": "string" },
+      "conversation_id": { "type": "string" },
+      "caller_id": { "type": "string" },
+      "name": { "type": "string" },
+      "email": { "type": "string" },
+      "company": { "type": "string" },
+      "need": { "type": "string" },
+      "timeline": { "type": "string" },
+      "budget": { "type": "string" },
+      "lead_score": { "type": "integer" }
+    }
+  }
+}

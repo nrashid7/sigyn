@@ -23,6 +23,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No business found" }, { status: 404 });
     }
 
+    const origin = request.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL;
+
     const { data: subscription } = await supabase
       .from("subscriptions")
       .select("stripe_customer_id")
@@ -30,10 +32,10 @@ export async function POST(request: Request) {
       .single();
 
     if (!subscription?.stripe_customer_id) {
-      return NextResponse.json({ error: "No subscription found" }, { status: 404 });
+      return NextResponse.redirect(
+        new URL("/dashboard/billing?error=no_subscription", origin),
+      );
     }
-
-    const origin = request.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL;
 
     const portalSession = await getStripe().billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,

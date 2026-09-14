@@ -6,9 +6,9 @@
 |-----------|----------|
 | Frontend | Vercel |
 | Database, Auth, Storage, Edge Functions | Supabase |
-| Voice | Retell AI |
+| Voice | ElevenLabs |
 | SMS | Twilio |
-| Automation | n8n Cloud |
+| Automation | n8n (Railway) |
 | Billing | Stripe |
 | Analytics | PostHog |
 
@@ -29,22 +29,13 @@ supabase db push
 supabase db execute --file supabase/seed.sql
 
 # Set Edge Function secrets
-supabase secrets set RETELL_API_KEY=xxx OPENROUTER_API_KEY=xxx OPENAI_API_KEY=xxx
+supabase secrets set ELEVENLABS_API_KEY=xxx ELEVENLABS_WEBHOOK_SECRET=xxx ELEVENLABS_TOOL_SECRET=xxx ELEVENLABS_TOOL_IDS=xxx
 supabase secrets set STRIPE_SECRET_KEY=xxx STRIPE_WEBHOOK_SECRET=xxx
 supabase secrets set TWILIO_ACCOUNT_SID=xxx TWILIO_AUTH_TOKEN=xxx TWILIO_PHONE_NUMBER=+1xxx
-supabase secrets set ELEVENLABS_API_KEY=xxx N8N_WEBHOOK_BASE_URL=xxx N8N_WEBHOOK_SECRET=xxx
+supabase secrets set N8N_WEBHOOK_BASE_URL=xxx N8N_WEBHOOK_SECRET=xxx
 
-# Deploy Edge Functions
-supabase functions deploy retell-webhook
-supabase functions deploy retell-create-agent
-supabase functions deploy knowledge-ingest
-supabase functions deploy knowledge-search
-supabase functions deploy call-analyze
-supabase functions deploy calendar-availability
-supabase functions deploy calendar-book
-supabase functions deploy stripe-webhook
-supabase functions deploy n8n-dispatch
-supabase functions deploy voice-preview
+# Deploy all 13 Edge Functions
+npm run deploy:functions
 ```
 
 ### Enable Google Auth in Supabase Dashboard
@@ -57,15 +48,15 @@ supabase functions deploy voice-preview
 
 The migration creates a `knowledge` bucket automatically. Verify in Storage settings.
 
-## 2. Retell AI Setup
+## 2. ElevenLabs Setup
 
-1. Create account at [retellai.com](https://retellai.com)
-2. Copy API key to Supabase secrets
-3. Register webhook URL:
-   ```
-   https://YOUR_PROJECT.supabase.co/functions/v1/retell-webhook
-   ```
-4. Phone numbers are provisioned via `retell-create-agent` Edge Function during onboarding
+1. Create a Twilio account and verify (or port in) the phone numbers agents will be hired with.
+2. Run `npm run setup:elevenlabs` — it creates the ElevenLabs mid-call tools and the
+   workspace post-call webhook, and prints `ELEVENLABS_WEBHOOK_SECRET`,
+   `ELEVENLABS_TOOL_SECRET`, and `ELEVENLABS_TOOL_IDS` to add to Supabase secrets.
+3. Phone numbers are imported from Twilio and assigned to the agent by the
+   `agent-provision` Edge Function during onboarding (the Hire flow) — no manual
+   per-business step needed.
 
 ## 3. Vercel Deployment
 
@@ -88,18 +79,19 @@ Root directory: `apps/web`
    - **Starter** — $99/mo recurring, 200 min included
    - **Pro** — $249/mo recurring, 600 min included
    - **Setup Fee** — $199 one-time
-2. Copy price IDs to env vars
+2. Copy price IDs to env vars: `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_SETUP` (one-time price)
 3. Create webhook endpoint:
    ```
    https://YOUR_PROJECT.supabase.co/functions/v1/stripe-webhook
    ```
-4. Enable events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`
+   Pin the endpoint's API version to `2025-08-27.basil`.
+4. Enable events: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`
 
 ## 5. n8n Setup
 
-1. Create n8n Cloud account or self-host with Docker
+1. Create n8n on Railway (or self-host)
 2. Import workflows from `n8n/workflows/`:
-   - `retell-call-completed.json`
+   - `call-completed.json`
    - `sms-follow-up.json`
    - `hubspot-sync.json`
    - `ghl-sync.json`
@@ -118,7 +110,7 @@ Root directory: `apps/web`
 - [ ] Sign up with email or Google
 - [ ] Complete 5-step onboarding wizard
 - [ ] Upload a knowledge document (TXT/PDF)
-- [ ] Hire an AI agent (Retell agent created)
+- [ ] Hire an AI agent (ElevenLabs agent created + phone number assigned)
 - [ ] Make a test inbound call
 - [ ] Verify transcript appears in dashboard
 - [ ] Verify SMS follow-up on missed call

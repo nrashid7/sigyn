@@ -35,7 +35,7 @@ export default async function CallDetailPage({ params }: CallDetailPageProps) {
             {call.caller_number || "Unknown Caller"}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {formatDate(call.started_at)}
+            {formatDate(call.started_at ?? call.created_at)}
             {call.duration_seconds > 0 && ` · ${formatDuration(call.duration_seconds)}`}
           </p>
         </div>

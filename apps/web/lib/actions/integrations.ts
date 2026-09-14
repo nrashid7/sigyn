@@ -10,7 +10,7 @@ export async function getIntegrations() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("integrations")
-    .select("*")
+    .select("id, business_id, provider, config, is_active, created_at")
     .eq("business_id", business.id);
 
   return data ?? [];

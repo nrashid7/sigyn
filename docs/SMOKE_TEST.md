@@ -6,7 +6,7 @@ Run after deploying all services with valid API keys.
 
 - Supabase project with migrations applied and seed data
 - Edge Functions deployed
-- Retell API key configured
+- ElevenLabs API key and webhook/tool secrets configured (see `docs/ENVIRONMENT.md`)
 - `.env.local` filled in `apps/web`
 
 ## Test Flow
@@ -25,7 +25,7 @@ Run after deploying all services with valid API keys.
 | 2 | `/onboarding/knowledge` | Upload TXT or PDF | Document status → processing → ready |
 | 3 | `/onboarding/calendar` | Connect Google Calendar (optional) | Integration saved or skip |
 | 4 | `/onboarding/call-preferences` | Set transfer rules | Preferences saved |
-| 5 | `/onboarding/voice` | Select agent + voice, click Hire | Retell agent created, redirect to dashboard |
+| 5 | `/onboarding/voice` | Select agent + voice, click Hire | ElevenLabs agent created + phone number assigned, redirect to dashboard |
 
 ### 3. Live Call Test
 
@@ -65,11 +65,9 @@ Run after deploying all services with valid API keys.
 ## API Endpoint Checks
 
 ```bash
-# Knowledge search (replace IDs)
-curl -X POST "$SUPABASE_URL/functions/v1/knowledge-search" \
-  -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"business_id":"UUID","query":"business hours"}'
+# Automated checks against the deployed ElevenLabs-facing functions
+# (signed webhook delivery, tool auth matrix, calls-reconcile, optional --provision)
+npm run smoke
 
 # Voice preview
 curl -X POST "$SUPABASE_URL/functions/v1/voice-preview" \
@@ -82,7 +80,7 @@ curl -X POST "$SUPABASE_URL/functions/v1/voice-preview" \
 
 - [ ] Signup to live phone number in under 15 minutes
 - [ ] Inbound call answered with business context
-- [ ] RAG retrieves uploaded FAQ during call
+- [ ] ElevenLabs knowledge base answers a question from the uploaded FAQ
 - [ ] Appointment booked via calendar tool
 - [ ] Transcript + AI summary in dashboard
 - [ ] SMS on missed call

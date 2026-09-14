@@ -121,11 +121,15 @@ export async function createBooking(
   return { appointmentId: data.id, externalId };
 }
 
-function generateDefaultSlots(request: AvailabilityRequest): TimeSlot[] {
+export function generateDefaultSlots(request: AvailabilityRequest): TimeSlot[] {
   const duration = request.durationMinutes ?? 30;
   const start = new Date(request.startDate);
   const end = new Date(request.endDate ?? request.startDate);
   end.setDate(end.getDate() + (request.endDate ? 0 : 7));
+  // Normalise to end-of-day: without this, a same-day request (or the last day of
+  // any range) lands `end` at midnight while the cursor starts at 09:00, so the
+  // loop below never runs for that day.
+  end.setHours(23, 59, 59, 999);
 
   const slots: TimeSlot[] = [];
   const cursor = new Date(start);

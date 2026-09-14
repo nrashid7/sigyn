@@ -29,10 +29,10 @@ export const dexterTemplate: AgentTemplateConfig = {
     tagline: "The receptionist every business wishes they had.",
   },
   voice: {
-    retell_voice_id: "11labs-Adrian",
     elevenlabs_voice_id: "pNInz6obpgDQGcFmaJgB",
-    default_provider: "retell",
   },
+  first_message:
+    "Hi, thanks for calling {{business_name}}. This is Dexter — how can I help you today?",
   system_prompt: `You are Dexter, a professional AI receptionist for {{business_name}}.
 
 Your role:
@@ -68,15 +68,15 @@ Always be helpful, concise, and human. Never make up information not in your kno
     { condition: "caller angry after 2 attempts", action: "transfer to transfer_number" },
   ],
   faq_rules: [
-    "Search knowledge base before answering business-specific questions",
+    "Use the attached knowledge base documents before answering business-specific questions",
     "If unsure, offer to have staff call back",
   ],
   qualification_questions: [
     "May I ask what you're calling about today?",
     "Is this regarding a new inquiry or existing service?",
   ],
-  retell_llm_config: {
-    model: "gpt-4.1-mini",
+  elevenlabs: {
+    llm: "gpt-4o-mini",
     temperature: 0.7,
   },
 };
@@ -100,10 +100,10 @@ export const ziaTemplate: AgentTemplateConfig = {
     tagline: "Your salon's always-on booking coordinator.",
   },
   voice: {
-    retell_voice_id: "retell-Willa",
     elevenlabs_voice_id: "21m00Tcm4TlvDq8ikWAM",
-    default_provider: "retell",
   },
+  first_message:
+    "Hi, thanks for calling {{business_name}}! This is Zia. Are you looking to book an appointment today?",
   system_prompt: `You are Zia, an AI booking assistant for {{business_name}}, a salon and spa.
 
 Your role:
@@ -142,8 +142,8 @@ Be upbeat, stylish, and efficient. Always confirm date, time, service, and conta
     "Do you have a preferred stylist?",
     "Is this your first visit with us?",
   ],
-  retell_llm_config: {
-    model: "gpt-4.1-mini",
+  elevenlabs: {
+    llm: "gpt-4o-mini",
     temperature: 0.6,
   },
 };
@@ -167,10 +167,10 @@ export const sparkyTemplate: AgentTemplateConfig = {
     tagline: "Your 24/7 dispatch desk for home services.",
   },
   voice: {
-    retell_voice_id: "cartesia-Adam",
     elevenlabs_voice_id: "pNInz6obpgDQGcFmaJgB",
-    default_provider: "retell",
   },
+  first_message:
+    "Thanks for calling {{business_name}}, this is Sparky. What can we help you with today?",
   system_prompt: `You are Sparky, an AI dispatcher for {{business_name}}, a home services company.
 
 Your role:
@@ -209,8 +209,8 @@ Be calm, efficient, and safety-focused. For gas leaks, flooding, or electrical f
     "What's the service address?",
     "Is this an emergency situation right now?",
   ],
-  retell_llm_config: {
-    model: "gpt-4.1-mini",
+  elevenlabs: {
+    llm: "gpt-4o-mini",
     temperature: 0.5,
   },
 };
@@ -234,10 +234,10 @@ export const sunnyTemplate: AgentTemplateConfig = {
     tagline: "Never double-book again.",
   },
   voice: {
-    retell_voice_id: "11labs-Lily",
     elevenlabs_voice_id: "EXAVITQu4vr4xnSDxMaL",
-    default_provider: "retell",
   },
+  first_message:
+    "Hi, you've reached {{business_name}}. This is Sunny — would you like to schedule an appointment?",
   system_prompt: `You are Sunny, an appointment coordinator for {{business_name}}.
 
 Your role:
@@ -265,8 +265,8 @@ Be organized, friendly, and precise with dates and times. Always repeat back the
     "What type of appointment do you need?",
     "Do you have a preferred date or time?",
   ],
-  retell_llm_config: {
-    model: "gpt-4.1-mini",
+  elevenlabs: {
+    llm: "gpt-4o-mini",
     temperature: 0.6,
   },
 };
@@ -290,10 +290,10 @@ export const bellaTemplate: AgentTemplateConfig = {
     tagline: "Turn every call into a qualified opportunity.",
   },
   voice: {
-    retell_voice_id: "11labs-Grace",
     elevenlabs_voice_id: "oWAxZDx7w5VEj9dCyTzz",
-    default_provider: "retell",
   },
+  first_message:
+    "Hi, thanks for calling {{business_name}}. This is Bella. What brought you to us today?",
   system_prompt: `You are Bella, a lead qualification assistant for {{business_name}}.
 
 Your role:
@@ -329,8 +329,8 @@ Be consultative, not pushy. Listen first, then ask qualifying questions.`,
     "What's your timeline for making a decision?",
     "What's your budget range?",
   ],
-  retell_llm_config: {
-    model: "gpt-4.1-mini",
+  elevenlabs: {
+    llm: "gpt-4o-mini",
     temperature: 0.7,
   },
 };

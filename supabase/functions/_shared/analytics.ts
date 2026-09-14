@@ -26,14 +26,21 @@ export async function captureEvent(options: PostHogCaptureOptions): Promise<void
     timestamp: new Date().toISOString(),
   };
 
-  const response = await fetch(`${host}/capture/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  // Analytics is never worth failing a webhook or a tool call for: stripe-webhook and
+  // n8n-dispatch both call this on their success path, and a DNS/TLS/timeout rejection
+  // here would otherwise surface as a 500 and be retried by the provider.
+  try {
+    const response = await fetch(`${host}/capture/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
 
-  if (!response.ok) {
-    console.warn("[analytics] PostHog capture failed:", await response.text());
+    if (!response.ok) {
+      console.warn("[analytics] PostHog capture failed:", await response.text());
+    }
+  } catch (error) {
+    console.warn("[analytics] PostHog capture request failed:", error);
   }
 }
 

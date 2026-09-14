@@ -12,8 +12,15 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "setup:n8n": "powershell -ExecutionPolicy Bypass -File scripts/apply-n8n-railway.ps1",
-    "deploy:n8n": "node scripts/deploy-n8n-workflows.mjs"
+    "db:push": "supabase db push --linked",
+    "deploy:functions": "supabase functions deploy --use-api",
+    "secrets:set": "supabase secrets set --env-file supabase/.env.local",
+    "test": "npm run test:node && npm run test:deno",
+    "test:node": "node --test \"scripts/**/*.test.mjs\"",
+    "test:deno": "deno test --allow-env --allow-read supabase/functions/tests",
+    "deploy:n8n": "node scripts/deploy-n8n-workflows.mjs",
+    "setup:elevenlabs": "node scripts/elevenlabs-setup.mjs",
+    "smoke": "node scripts/smoke-elevenlabs.mjs"
   },
   "devDependencies": {
     "turbo": "^2.5.4"

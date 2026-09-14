@@ -6,12 +6,11 @@ AI receptionist SaaS platform for SMBs. Deploy AI phone receptionists that answe
 
 ## Tech Stack
 
-- **Frontend:** Next.js 15, TypeScript, TailwindCSS, shadcn/ui, Framer Motion
-- **Backend:** Supabase (Postgres, pgvector, Auth, Storage, Edge Functions)
-- **Voice:** Retell AI, ElevenLabs
+- **Frontend:** Next.js 16, TypeScript, TailwindCSS, shadcn/ui, Framer Motion
+- **Backend:** Supabase (Postgres, Auth, Storage, Edge Functions)
+- **Voice/AI:** ElevenLabs (ElevenAgents: voice, knowledge base, call analysis)
 - **SMS:** Twilio
-- **AI:** OpenRouter (Claude Sonnet, GPT-4.1-mini)
-- **Automation:** n8n
+- **Automation:** n8n (Railway)
 - **Billing:** Stripe
 - **Analytics:** PostHog
 
@@ -19,10 +18,16 @@ AI receptionist SaaS platform for SMBs. Deploy AI phone receptionists that answe
 
 ```bash
 npm install
-cp .env.example apps/web/.env.local
-# Fill in environment variables (see docs/ENVIRONMENT.md)
 npm run dev
 ```
+
+`.env.example` is a template for two different files — do not copy it whole into either:
+
+- the **"Vercel (apps/web)"** section goes in `apps/web/.env.local`
+- the **"Supabase edge-function secrets"** section goes in `supabase/.env.local`, which `npm run secrets:set` uploads
+- the **"Local scripts only"** section is exported in your shell when you run `scripts/*.mjs`
+
+Fill in the values as described in [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).
 
 ## Project Structure
 
@@ -48,6 +53,7 @@ npm run dev
 
 - [Environment Variables](docs/ENVIRONMENT.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
+- [Deploying from GitHub Actions](docs/DEPLOY_WITH_GITHUB_ACTIONS.md)
 - [n8n + Supabase Integration](docs/N8N_SUPABASE_SETUP.md)
 
 ## License
