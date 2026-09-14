@@ -28,9 +28,20 @@ export function shouldStoreRecording(
   );
 }
 
-/** The SMS only makes sense for a missed call, and only when we know who to text back. */
-export function shouldSendMissedCallSms(conv: ElConversation): boolean {
-  return isMissedCall(conv) && Boolean(conv.metadata?.phone_call?.external_number);
+/**
+ * The SMS only makes sense for a missed call, only when we know who to text back, and only
+ * the first time this conversation is ever recorded as complete — a redelivered webhook or a
+ * reconcile run finalizing an already-texted conversation must not send it again.
+ */
+export function shouldSendMissedCallSms(
+  conv: ElConversation,
+  firstCompletion: boolean,
+): boolean {
+  return (
+    firstCompletion &&
+    isMissedCall(conv) &&
+    Boolean(conv.metadata?.phone_call?.external_number)
+  );
 }
 
 // --- shared post-persist orchestration (webhook + reconcile) ---
@@ -77,7 +88,7 @@ export async function runPostCallSideEffects(
 
   try {
     const callerNumber = conv.metadata?.phone_call?.external_number;
-    if (shouldSendMissedCallSms(conv) && callerNumber) {
+    if (shouldSendMissedCallSms(conv, firstCompletion) && callerNumber) {
       await sendMissedCallSms(supabase, agent, callId, callerNumber);
     }
   } catch (error) {

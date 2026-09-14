@@ -52,6 +52,13 @@ async function handleInitiationFailure(
     (payload.event_timestamp ?? Math.floor(Date.now() / 1000)) * 1000,
   ).toISOString();
 
+  const { data: existing } = await supabase
+    .from("calls")
+    .select("id")
+    .eq("elevenlabs_conversation_id", data.conversation_id)
+    .maybeSingle();
+  const firstCompletion = !existing;
+
   const { data: call, error } = await supabase
     .from("calls")
     .upsert({
@@ -78,7 +85,7 @@ async function handleInitiationFailure(
     );
   }
 
-  if (callerNumber) {
+  if (firstCompletion && callerNumber) {
     try {
       await sendMissedCallSms(supabase, agent, call.id, callerNumber);
     } catch (smsError) {

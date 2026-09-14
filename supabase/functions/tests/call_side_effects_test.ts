@@ -106,31 +106,39 @@ Deno.test("shouldStoreRecording: false when duration is missing", () => {
 
 Deno.test("shouldSendMissedCallSms: false for an answered call even with a caller number", () => {
   // The fixture's agent spoke, so this is not a missed call.
-  assertEquals(shouldSendMissedCallSms(conversation()), false);
+  assertEquals(shouldSendMissedCallSms(conversation(), true), false);
 });
 
-Deno.test("shouldSendMissedCallSms: true for a missed call with a caller number", () => {
+Deno.test("shouldSendMissedCallSms: true for a missed call with a caller number on first completion", () => {
   const conv = conversation();
   conv.status = "failed";
-  assertEquals(shouldSendMissedCallSms(conv), true);
+  assertEquals(shouldSendMissedCallSms(conv, true), true);
 });
 
 Deno.test("shouldSendMissedCallSms: false for a missed call with no caller number", () => {
   const conv = conversation();
   conv.status = "failed";
   delete conv.metadata!.phone_call;
-  assertEquals(shouldSendMissedCallSms(conv), false);
+  assertEquals(shouldSendMissedCallSms(conv, true), false);
 });
 
 Deno.test("shouldSendMissedCallSms: false when the external number is an empty string", () => {
   const conv = conversation();
   conv.status = "failed";
   conv.metadata!.phone_call!.external_number = "";
-  assertEquals(shouldSendMissedCallSms(conv), false);
+  assertEquals(shouldSendMissedCallSms(conv, true), false);
 });
 
 Deno.test("shouldSendMissedCallSms: true when only the caller ever spoke", () => {
   const conv = conversation();
   conv.transcript = [{ role: "user", message: "Hello?", time_in_call_secs: 0 }];
-  assertEquals(shouldSendMissedCallSms(conv), true);
+  assertEquals(shouldSendMissedCallSms(conv, true), true);
+});
+
+Deno.test("shouldSendMissedCallSms: false on a repeat completion, even for a missed call with a caller number", () => {
+  // A redelivered webhook, or a reconcile run finalizing a conversation the webhook already
+  // completed, must not re-send the text — no matter how "missed" the call looks in isolation.
+  const conv = conversation();
+  conv.status = "failed";
+  assertEquals(shouldSendMissedCallSms(conv, false), false);
 });
