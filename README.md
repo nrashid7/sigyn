@@ -53,6 +53,7 @@ Fill in the values as described in [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).
 
 - [Environment Variables](docs/ENVIRONMENT.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
+- [Deploying from GitHub Actions](docs/DEPLOY_WITH_GITHUB_ACTIONS.md)
 - [n8n + Supabase Integration](docs/N8N_SUPABASE_SETUP.md)
 
 ## License

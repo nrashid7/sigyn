@@ -1,5 +1,7 @@
 # Deploying the ElevenLabs backend from Cursor
 
+Prefer `docs/DEPLOY_WITH_GITHUB_ACTIONS.md` unless you can run the CLI on a machine you trust with secrets; this file is the local-CLI alternative.
+
 Everything below runs from a terminal in Cursor opened at the repo root (`~/Desktop/sigyn`, branch `feat/elevenlabs-backend`). Use personal accounts only. No Docker, no AWS. Each step lists the command and what you should observe before moving on.
 
 ## 0. One-time tooling and logins

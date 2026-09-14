@@ -72,6 +72,29 @@ select vault.create_secret('https://<project-ref>.supabase.co', 'project_url');
 select vault.create_secret('<legacy service_role JWT>', 'service_role_key');
 ```
 
+## GitHub Actions
+
+`docs/DEPLOY_WITH_GITHUB_ACTIONS.md` covers full setup. These are set in the
+repo's Settings → Secrets and variables → Actions and read by
+`.github/workflows/deploy-backend.yml` — never by the app or the edge
+functions.
+
+| Repository variable | Description |
+|----------------------|-------------|
+| `SUPABASE_PROJECT_REF` | Linked project ref, used by every `--project-ref` flag |
+| `SUPABASE_URL` | Same project URL as above, used by the job `env` and the ElevenLabs setup script |
+| `N8N_WEBHOOK_BASE_URL` | Optional — same value as the edge-function secret of the same name above, supplied as a repository variable instead |
+
+| CI-only secret | Description |
+|-----------------|-------------|
+| `SUPABASE_ACCESS_TOKEN` | Personal access token the workflow uses to authenticate the Supabase CLI |
+| `SUPABASE_DB_URL` | Session-pooler connection string used by `supabase db push` and the seed/vault `psql` steps |
+
+The edge-function secrets listed above (`ELEVENLABS_*`, `TWILIO_*`,
+`STRIPE_*`, `GOOGLE_CLIENT_*`, `N8N_WEBHOOK_SECRET`, `POSTHOG_API_KEY`) are
+also stored as GitHub Secrets with the same names — the workflow forwards
+them to Supabase rather than introducing new names for them.
+
 ## Local scripts only
 
 These are read directly from the shell environment when you run a script by
