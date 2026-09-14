@@ -179,11 +179,15 @@ export async function recordUsageMinutes(
     const before = used - minutes;
     for (const threshold of [80, 100]) {
       if ((before / included) * 100 < threshold && (used / included) * 100 >= threshold) {
-        await captureBusinessEvent(businessId, "usage_threshold_reached", {
-          threshold,
-          used_minutes: used,
-          included_minutes: included,
-        });
+        try {
+          await captureBusinessEvent(businessId, "usage_threshold_reached", {
+            threshold,
+            used_minutes: used,
+            included_minutes: included,
+          });
+        } catch (err) {
+          console.warn("[stripe] usage_threshold_reached emit failed:", err);
+        }
       }
     }
   }

@@ -3,13 +3,13 @@ DROP POLICY IF EXISTS knowledge_storage_select ON storage.objects;
 DROP POLICY IF EXISTS knowledge_storage_insert ON storage.objects;
 DROP POLICY IF EXISTS knowledge_storage_delete ON storage.objects;
 CREATE POLICY knowledge_storage_select ON storage.objects FOR SELECT TO authenticated
-  USING (bucket_id = 'knowledge' AND (storage.foldername(name))[1] ~ '^[0-9a-f-]{36}$'
+  USING (bucket_id = 'knowledge' AND (storage.foldername(name))[1] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
     AND (public.is_business_member(((storage.foldername(name))[1])::uuid) OR public.is_admin()));
 CREATE POLICY knowledge_storage_insert ON storage.objects FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'knowledge' AND (storage.foldername(name))[1] ~ '^[0-9a-f-]{36}$'
+  WITH CHECK (bucket_id = 'knowledge' AND (storage.foldername(name))[1] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
     AND (public.is_business_member(((storage.foldername(name))[1])::uuid) OR public.is_admin()));
 CREATE POLICY knowledge_storage_delete ON storage.objects FOR DELETE TO authenticated
-  USING (bucket_id = 'knowledge' AND (storage.foldername(name))[1] ~ '^[0-9a-f-]{36}$'
+  USING (bucket_id = 'knowledge' AND (storage.foldername(name))[1] ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
     AND (public.is_business_member(((storage.foldername(name))[1])::uuid) OR public.is_admin()));
 
 -- Integrations: hide OAuth tokens from members via column-level grants

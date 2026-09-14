@@ -15,6 +15,11 @@ INSERT INTO subscriptions (business_id, plan, status, included_minutes, used_min
 SELECT b.id, 'starter', 'trialing', 200, 0, NOW() + INTERVAL '14 days'
 FROM businesses b WHERE NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.business_id = b.id);
 
+DELETE FROM usage_records u USING usage_records u2
+WHERE u.call_id IS NOT NULL AND u2.call_id IS NOT NULL
+  AND u.call_id = u2.call_id AND u.type = u2.type
+  AND (u.recorded_at, u.id) > (u2.recorded_at, u2.id);
+
 CREATE UNIQUE INDEX IF NOT EXISTS usage_records_call_type_key
   ON usage_records (call_id, type) WHERE call_id IS NOT NULL;
 
@@ -34,4 +39,6 @@ BEGIN
   RETURN QUERY SELECT v_inserted, s.used_minutes, s.included_minutes
     FROM subscriptions s WHERE s.business_id = p_business_id;
 END $$;
+-- This REVOKE/GRANT pair is the ONLY authorization boundary for this SECURITY DEFINER function; never grant it to authenticated.
 REVOKE EXECUTE ON FUNCTION record_call_minutes(UUID, UUID, INT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION record_call_minutes(UUID, UUID, INT) TO service_role;
