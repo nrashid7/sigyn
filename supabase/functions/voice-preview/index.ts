@@ -5,6 +5,7 @@ import {
   jsonResponse,
   parseJsonBody,
 } from "../_shared/errors.ts";
+import { requireServiceRole } from "../_shared/auth.ts";
 
 interface VoicePreviewRequest {
   voice_id: string;
@@ -31,6 +32,8 @@ Deno.serve(async (req) => {
   }
 
   try {
+    requireServiceRole(req);
+
     const { voice_id, text, model_id } = await parseJsonBody<VoicePreviewRequest>(req);
 
     if (!voice_id) {
