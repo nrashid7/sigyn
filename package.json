@@ -18,7 +18,8 @@
     "test": "npm run test:node && npm run test:deno",
     "test:node": "node --test \"scripts/**/*.test.mjs\"",
     "test:deno": "deno test --allow-env --allow-read supabase/functions/tests",
-    "deploy:n8n": "node scripts/deploy-n8n-workflows.mjs"
+    "deploy:n8n": "node scripts/deploy-n8n-workflows.mjs",
+    "setup:elevenlabs": "node scripts/elevenlabs-setup.mjs"
   },
   "devDependencies": {
     "turbo": "^2.5.4"
